@@ -324,3 +324,8 @@ gradle-app.setting
 
 # End of https://www.toptal.com/developers/gitignore/api/java,kotlin,visualstudiocode,intellij+all,eclipse,windows,macos,maven,gradle
 
+/src/main/resources/application-dev.yml
+/src/main/resources/application-prod.yml
+/src/main/resources/application-test.yml
+/src/main/resources/sample-gri-data.csv
+/src/main/resources/schema.sql
