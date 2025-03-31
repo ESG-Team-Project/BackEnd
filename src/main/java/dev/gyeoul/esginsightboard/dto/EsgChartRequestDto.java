@@ -5,7 +5,6 @@ import java.util.Map;
 public class EsgChartRequestDto {
     // ESG 카테고리: "E", "S", "G"
     private String categoryCode;
-
     // 차트 제목
     private String chartTitle;
 
