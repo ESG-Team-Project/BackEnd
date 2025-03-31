@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: ESGInsightBoard
+  sql:
+    init:
+      mode: never
+      schema-locations: classpath:schema.sql
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
+  main:
+    allow-circular-references: true
+    allow-bean-definition-overriding: true
+
+server:
+  port: 8080
+
+# Springdoc OpenAPI 설정
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    disable-swagger-default-url: true
+    display-request-duration: true
+    doc-expansion: none
+    default-models-expand-depth: -1
+    show-extensions: true
+    url: /api-docs
+    config-url: /api-docs/swagger-config
+    hide-empty-tags: true
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  paths-to-match:
+    - /api/**
+
+# JWT 설정  
+jwt:
+  header: Authorization
+  prefix: Bearer
