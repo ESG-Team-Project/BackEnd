@@ -23,10 +23,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 
-import java.io.File;
-import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 /**
  * 데이터 임포트 관련 API 엔드포인트를 제공하는 컨트롤러
@@ -41,7 +42,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 @Tag(name = "Data Import API", description = "CSV 파일을 통한 ESG 데이터 임포트 및 관련 기능")
 public class DataImportController {
-    private static final String UPLOAD_DIR = "./csv/";
+    private static final String UPLOAD_DIR = "csv";
     /**
      * 컨텐츠 타입 상수 - CSV
      */
@@ -116,6 +117,7 @@ public class DataImportController {
 
         // 로그인 토큰에서 사용자 정보 가져오기
         UserDto user = (UserDto) httpRequest.getAttribute("user");
+        log.info("user: {}", user);
 
         // 인증 확인
         if (user == null) {
@@ -129,24 +131,34 @@ public class DataImportController {
         );
 
         try {
-            // 서비스 호출 및 결과 반환 (사용자 정보 전달)
+            // 업로드 디렉토리 생성
+            Path uploadPath = Paths.get(UPLOAD_DIR);
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            // 고유한 파일명 생성
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
+            Path filePath = uploadPath.resolve(uniqueFilename);
+
+            // 파일 저장
+            Files.copy(file.getInputStream(), filePath);
+
+            // 서비스 호출 및 결과 반환
             CsvUploadRequest request = new CsvUploadRequest(file);
             CsvUploadResponse response = csvImportService.processCsvFile(request, user);
-            File directory = new File(UPLOAD_DIR);
-            if (!directory.exists()) {
-                directory.mkdirs();
-            }
-            String filePath = UPLOAD_DIR + request.getFile().getOriginalFilename();
-            file.transferTo(new File(filePath));
-            // 처리 결과에 따라 적절한 HTTP 상태 코드 반환
+
+            // 임시 파일 삭제
+            // Files.deleteIfExists(filePath);
+
             if (response.isSuccess()) {
                 log.info("CSV 파일 처리 성공: 처리된 행 수={}", response.getProcessedRows());
                 return ResponseEntity.ok(response);
             } else {
                 log.warn("CSV 파일 처리 중 오류 발생: {}", response.getErrorMessages());
-                return ResponseEntity
-                        .status(HttpStatus.BAD_REQUEST)
-                        .body(response);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
             }
         } catch (Exception e) {
             log.error("CSV 파일 처리 중 예외 발생", e);
@@ -156,10 +168,7 @@ public class DataImportController {
                     .success(false)
                     .message("CSV 파일 처리 중 오류가 발생했습니다: " + e.getMessage())
                     .build();
-
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 

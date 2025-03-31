@@ -49,3 +49,5 @@ springdoc:
 jwt:
   header: Authorization
   prefix: Bearer
+  secret: ${JWT_SECRET:}  # 환경 변수에서 시크릿 키를 가져오거나, 비어있으면 자동 생성
+  expiration: 86400000  # 24시간 (밀리초)
