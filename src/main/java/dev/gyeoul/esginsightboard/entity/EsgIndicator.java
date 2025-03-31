@@ -54,9 +54,7 @@ public class EsgIndicator {
             return UNVERIFIED;
         }
     }
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; //고유 식별자
+
 
     @Column(nullable = false)
     private String standardCode; //표준코드
