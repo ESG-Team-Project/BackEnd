@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "esg_indicators") // ESG 지표 테이블
+//@Table(name = "esg_indicators")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // 기본 생성자 보호
 public class EsgIndicator {
@@ -41,3 +41,4 @@ public class EsgIndicator {
         this.category = category;
     }
 }
+

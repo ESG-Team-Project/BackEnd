@@ -11,18 +11,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "esg_categories") // ESG 카테고리를 저장하는 테이블
+@Table(name = "esg_categories")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED) // 기본 생성자 보호
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EsgCategory {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // 기본 키 자동 증가
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true) // 필수 값 + 중복 불가
+    @Column
     @NotNull
-    private String code; // ESG 코드 ("E", "S", "G")
+    private String code; // "E", "S", "G"
 
     @Builder // 빌더 패턴을 사용하여 객체 생성
     public EsgCategory(String code) {
