@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface EsgIndicatorRepository extends JpaRepository<EsgIndicator, Long> {
 
-    // 지표 제목으로 조회 (예: "원재료 사용량")
-    Optional<EsgIndicator> findByTitle(String title);
+    // 지표 코드 조회 (예: "301-1")
+    Optional<EsgIndicator> findByIndicatorCode(String indicatorCode);
 }

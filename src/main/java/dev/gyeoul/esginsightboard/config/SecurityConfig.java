@@ -22,32 +22,35 @@ public class SecurityConfig {
     private final CorsConfigurationSource corsConfigurationSource;
 
     private static final String[] WHITELIST = {
-        "/api/users/login",
-        "/api/users/signup",
-        "/api/users/test-token",
-        "/api/users/token-test",
-        "/v3/api-docs/**",
-        "/swagger-ui/**",
-        "/swagger-ui.html",
-        "/swagger-resources/**",
-        "/api-docs/**",
-        "/api-docs/swagger-config",
-        "/api-docs",
-        "/api/charts"
+            "/api/users/login",
+            "/api/users/signup",
+            "/api/users/test-token",
+            "/api/users/token-test",
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/swagger-resources/**",
+            "/api-docs/**",
+            "/api-docs/swagger-config",
+            "/api-docs",
+            "/api/charts",
+            "/h2-console/**",
+            "/h2-console"
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.headers().frameOptions().disable();
         return http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(WHITELIST).permitAll()
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .build();
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(WHITELIST).permitAll()
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 
     @Bean

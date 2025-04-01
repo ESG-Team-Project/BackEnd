@@ -22,15 +22,15 @@ public class ChartService {
     public void saveChartData(EsgChartDataDto dto) {
 
         // 1. 카테고리 조회
-        EsgCategory category = categoryRepository.findByCode(dto.getCategoryCode())
+        EsgCategory category = categoryRepository.findByCategory(dto.getCategory())
                 .orElseThrow(() -> new IllegalArgumentException("잘못된 카테고리 코드입니다."));
 
         // 2. 지표 조회 또는 생성
-        EsgIndicator indicator = indicatorRepository.findByTitle(dto.getIndicatorName())
+        EsgIndicator indicator = indicatorRepository.findByIndicatorCode(dto.getIndicatorCode())
                 .orElseGet(() -> {
                     EsgIndicator newIndicator = new EsgIndicator(
                             "CODE-" + System.currentTimeMillis(), // 고유 코드 생성
-                            dto.getIndicatorName(),
+                            dto.getIndicatorCode(),
                             "", // 설명 생략
                             category
                     );
@@ -59,7 +59,7 @@ public class ChartService {
                     company,
                     numericValue,
                     value,
-                    "기본단위", // 단위는 실제로는 DTO에 추가해도 좋음
+                    dto.getUnit(), // 단위는 실제로는 DTO에 추가해도 좋음
                     startDate,
                     endDate
             );

@@ -22,14 +22,14 @@ public class EsgCategory {
 
     @Column
     @NotNull
-    private String code; // "E", "S", "G"
+    private String category; // "E", "S", "G"
 
     @Builder // 빌더 패턴을 사용하여 객체 생성
-    public EsgCategory(String code) {
-        this.code = code;
+    public EsgCategory(String category) {
+        this.category = category;
     }
     public String getName() {
-        return switch (this.code) {
+        return switch (this.category) {
             case "E" -> "환경";
             case "S" -> "사회";
             case "G" -> "지배구조";
