@@ -38,7 +38,7 @@ public class ChartService {
                 });
 
         // 3. 회사 임시 조회 (1번 ID 고정)
-        Company company = companyRepository.findById(1L)
+        Company company = companyRepository.findById(dto.getCompanyId())
                 .orElseThrow(() -> new IllegalStateException("회사를 찾을 수 없습니다."));
 
         // 4. 입력값 Map을 순회하며 저장

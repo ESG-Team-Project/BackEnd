@@ -42,4 +42,3 @@ public class EsgIndicator {
         this.category = category;
     }
 }
-

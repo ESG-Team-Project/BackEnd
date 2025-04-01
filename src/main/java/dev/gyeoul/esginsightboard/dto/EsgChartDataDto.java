@@ -28,8 +28,10 @@ public class EsgChartDataDto {
 
     private String unit; // 데이터 단위 (예: "kWh", "tCO2eq")
 
+    private  Long companyId;
+
     // 생성자
-    public EsgChartDataDto(String category, String chartTitle, String indicatorCode, Map<String, String> indicatorInputs) {
+    public EsgChartDataDto(String category, String chartTitle, String indicatorCode, Map<String, String> indicatorInputs, Long companyId) {
         String trimmedCode = category.trim().toUpperCase();
 
         // 직접 검증: E, S, G 중 하나인지 확인
@@ -41,5 +43,6 @@ public class EsgChartDataDto {
         this.indicatorCode = indicatorCode;
         this.indicatorInputs = indicatorInputs;
         this.unit = indicatorInputs.get("unit");
+        this.companyId = companyId;
     }
 }
