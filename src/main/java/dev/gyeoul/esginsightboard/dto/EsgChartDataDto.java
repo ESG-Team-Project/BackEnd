@@ -1,54 +1,34 @@
 package dev.gyeoul.esginsightboard.dto;
 
-import dev.gyeoul.esginsightboard.entity.EsgInputValue;
-import dev.gyeoul.esginsightboard.entity.EsgIndicator;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.Getter;
 
-import java.time.LocalDate;
+import java.util.Map;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter
 public class EsgChartDataDto {
-    private Long inputValueId;
-    private Long indicatorId;
-    private Long companyId;
-    private Double numericValue;
-    private String textValue;
-    private String unit;
-    private LocalDate reportingPeriodStart;
-    private LocalDate reportingPeriodEnd;
-    private Long id;
-    private String code;
-    private String title;
-    private String description;
-    private String indicatorCode;
-    private String indicatorTitle;
-    private String indicatorDescription;
-    private Long categoryId;
+    // ESG 카테고리: "E", "S", "G"
+    @NotBlank(message = "카테고리 코드는 필수입니다.")
+    private String categoryCode;
+    // 차트 제목
+    @NotBlank(message = "차트 제목은 필수입니다.")
+    private String chartTitle;
 
-    public static EsgChartDataDto fromEntities(EsgInputValue inputValue, EsgIndicator indicator) {
-        return EsgChartDataDto.builder()
-                .inputValueId(inputValue.getId())
-                .indicatorId(inputValue.getIndicator().getId())
-                .companyId(inputValue.getCompany().getId())
-                .numericValue(inputValue.getNumericValue())
-                .textValue(inputValue.getTextValue())
-                .unit(inputValue.getUnit())
-                .reportingPeriodStart(inputValue.getReportingPeriodStart())
-                .reportingPeriodEnd(inputValue.getReportingPeriodEnd())
-                .id(indicator.getId())
-                .code(indicator.getCode())
-                .title(indicator.getTitle())
-                .description(indicator.getDescription())
-                .indicatorCode(indicator.getCode())
-                .indicatorTitle(indicator.getTitle())
-                .indicatorDescription(indicator.getDescription())
-                .categoryId(indicator.getCategory().getId())
-                .build();
+    // ESG 지표 이름 (ex. 원재료)
+    @NotBlank(message = "지표 이름은 필수입니다.")
+    private String indicatorName;
+
+    // 지표별 상세 입력값 (key-value 구조)
+    @NotEmpty(message = "지표 입력값은 비어 있을 수 없습니다.")
+    private Map<String, String> indicatorInputs;
+
+    // 생성자
+    public EsgChartDataDto(String categoryCode, String chartTitle, String indicatorName, Map<String, String> indicatorInputs) {
+        this.categoryCode = categoryCode;
+        this.chartTitle = chartTitle;
+        this.indicatorName = indicatorName;
+        this.indicatorInputs = indicatorInputs;
     }
+
 }
