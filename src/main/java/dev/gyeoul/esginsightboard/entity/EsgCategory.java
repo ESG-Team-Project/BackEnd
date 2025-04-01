@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "esg_categories") // ESG 카테고리를 저장하는 테이블
+@Table(name = "esg_categories") // ESG 카테고리를 저장하는 테이블`
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // 기본 생성자 보호
 public class EsgCategory {
