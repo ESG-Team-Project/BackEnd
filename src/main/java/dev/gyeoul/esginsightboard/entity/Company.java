@@ -1,10 +1,7 @@
 package dev.gyeoul.esginsightboard.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,6 +28,8 @@ import java.util.Objects;
 @Table(name = "companies")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 public class Company {
     
     /**
@@ -309,4 +308,4 @@ public class Company {
                 ", sector='" + sector + '\'' +
                 '}';
     }
-} 
+}

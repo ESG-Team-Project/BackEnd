@@ -60,4 +60,6 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
      * @return 존재 여부
      */
     boolean existsByBusinessNumber(String businessNumber);
-} 
+
+    Optional<Object> findByid(Long id);
+}

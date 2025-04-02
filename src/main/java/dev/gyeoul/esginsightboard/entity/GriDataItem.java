@@ -42,7 +42,7 @@ import java.util.Objects;
 public class GriDataItem {
     
     /**
-     * 검증 상태 열거형
+     * 검증 상태 열거형 (enum)
      * <p>
      * GRI 데이터 항목의 검증 상태를 나타내는 열거형 타입입니다.
      * </p>
