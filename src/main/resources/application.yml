@@ -3,7 +3,7 @@ spring:
     name: ESGInsightBoard
   sql:
     init:
-      mode: always
+      mode: never
       schema-locations: classpath:schema.sql
   jpa:
     hibernate:
