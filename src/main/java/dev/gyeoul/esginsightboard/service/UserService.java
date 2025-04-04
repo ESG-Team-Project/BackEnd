@@ -17,6 +17,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import dev.gyeoul.esginsightboard.dto.UserUpdateRequest;
 
 import java.util.Optional;
 
@@ -68,7 +69,7 @@ public class UserService {
      * @return 찾거나 생성된 회사 엔티티
      */
     private Company findOrCreateCompany(SignupRequest request) {
-        // 회사 코드로 회사 정보 조회
+        // 회사 코드로 회사 정보 조회12
         Optional<Company> existingCompany = companyRepository.findByBusinessNumber(request.getCompanyCode());
         
         // 존재하면 기존 회사 정보 반환
@@ -196,5 +197,26 @@ public class UserService {
     public Optional<UserDto> getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .map(UserDto::fromEntity);
+    }
+
+    // 사용자 데이터 업데이트
+    @Transactional
+    public void updateUser(Long userId, UserUpdateRequest request) {
+        // 1. 사용자 ID로 기존 사용자 조회 (없으면 예외 발생)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        // 2. 필드 수정
+        user.setName(request.getName());
+        user.setEmail(request.getEmail());
+        user.setPhoneNumber(request.getPhoneNumber());
+
+        // 3. 비밀번호가 전달된 경우에만 수정 (공란이면 무시)
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            String encoderPassword =  passwordEncoder.encode(request.getPassword());
+            user.setPassword(encoderPassword);
+        }
+//        // 저장 (JPA 엔티티 변경 감지 dirty checking)
+//        return UserDto.toEntity(user);
     }
 } 

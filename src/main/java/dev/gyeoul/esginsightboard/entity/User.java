@@ -1,10 +1,7 @@
 package dev.gyeoul.esginsightboard.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,6 +17,7 @@ import java.util.Collections;
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA에 필요한 기본 생성자를 protected로 제한
 public class User implements UserDetails {
 
@@ -165,4 +163,4 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return this.enabled;
     }
-} 
+}

@@ -7,6 +7,7 @@ import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.repository.ChartDataRepository;
 import dev.gyeoul.esginsightboard.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+//import org.apache.catalina.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,9 @@ public class ChartDataService {
 
     private final ChartDataRepository chartDataRepository;
     private final UserRepository userRepository;
+
+//    @Transactional
+//    public User findUser()
 
     // ✅ 차트 데이터 저장 (DTO 적용)
     @Transactional
