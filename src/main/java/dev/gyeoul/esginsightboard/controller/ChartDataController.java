@@ -1,7 +1,11 @@
 package dev.gyeoul.esginsightboard.controller;
 
 import dev.gyeoul.esginsightboard.dto.ChartDataDto;
+import dev.gyeoul.esginsightboard.dto.UserDto;
+import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.service.ChartDataService;
+import dev.gyeoul.esginsightboard.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,11 +18,21 @@ import java.util.List;
 public class ChartDataController {
 
     private final ChartDataService chartDataService;
+    private final UserRepository userRepository; // ✅ User 객체 조회를 위한 서비스 추가
 
-    // ✅ 차트 데이터 저장
+    // ✅ 현재 로그인한 사용자의 차트 데이터 저장
     @PostMapping
-    public ResponseEntity<ChartDataDto> saveChart(@RequestBody ChartDataDto dto) {
-        ChartDataDto savedChart = chartDataService.saveChartData(dto);
+    public ResponseEntity<ChartDataDto> saveChart(HttpServletRequest request, @RequestBody ChartDataDto dto) {
+        UserDto userDto = (UserDto) request.getAttribute("user");
+        if (userDto == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        // ✅ UserRepository를 직접 사용해 User 조회
+        User user = userRepository.findById(userDto.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userDto.getId()));
+
+        ChartDataDto savedChart = chartDataService.saveChartData(dto, userDto); // ✅ User 객체 전달
         return ResponseEntity.ok(savedChart);
     }
 
@@ -60,6 +74,22 @@ public class ChartDataController {
     @GetMapping("/grid/{chartGrid}")
     public ResponseEntity<List<ChartDataDto>> getChartsByChartGrid(@PathVariable Integer chartGrid) {
         return ResponseEntity.ok(chartDataService.getChartDataByChartGrid(chartGrid));
+    }
+
+    // ✅ 차트 데이터 업데이트
+    @PutMapping("/{id}")
+    public ResponseEntity<ChartDataDto> updateChart(HttpServletRequest request, @PathVariable Long id, @RequestBody ChartDataDto dto) {
+        UserDto userDto = (UserDto) request.getAttribute("user");
+        if (userDto == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        // ✅ UserRepository를 직접 사용해 User 조회
+        User user = userRepository.findById(userDto.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userDto.getId()));
+
+        ChartDataDto updatedChart = chartDataService.updateChartData(id, dto, userDto); // ✅ User 객체 전달
+        return ResponseEntity.ok(updatedChart);
     }
 
     // ✅ 차트 데이터 삭제

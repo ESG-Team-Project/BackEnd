@@ -20,5 +20,5 @@ public interface ChartDataRepository extends JpaRepository<ChartData, Long> {
 
     List<ChartData> findByChartGrid(Integer chartGrid); // 차트 칸 개수로 조회
 
-    List<ChartData> findByDataContaining(String data); // JSON 데이터 내 특정 값 포함 조회 (추가)
+
 }

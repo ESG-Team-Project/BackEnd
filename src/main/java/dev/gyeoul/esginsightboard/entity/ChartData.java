@@ -14,6 +14,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChartData {
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;  //
+
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -48,7 +53,21 @@ public class ChartData {
 
     @Builder
     public ChartData(String title, String description, String category, String indicator,
-                     String chartType, Integer chartGrid, String data) {
+                     String chartType, Integer chartGrid, String data, User user) {
+        this.title = title;
+        this.description = description;
+        this.category = category;
+        this.indicator = indicator;
+        this.chartType = chartType;
+        this.chartGrid = chartGrid;
+        this.data = data;
+        this.user = user;
+    }
+
+    // ✅ 값 변경을 위한 update 메서드 추가
+    public void update(String title, String description, String category,
+                       String indicator, String chartType, Integer chartGrid,
+                       String data) {
         this.title = title;
         this.description = description;
         this.category = category;

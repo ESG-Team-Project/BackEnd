@@ -3,6 +3,7 @@ package dev.gyeoul.esginsightboard.dto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.gyeoul.esginsightboard.entity.ChartData;
+import dev.gyeoul.esginsightboard.entity.User;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -14,6 +15,7 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 public class ChartDataDto {
+    private Long userId;  // ✅ User 객체 X → userId (Long)만 저장
     private String title;
     private String description;
     private String category;
@@ -27,6 +29,7 @@ public class ChartDataDto {
     // ✅ 엔티티 → DTO 변환
     public static ChartDataDto fromEntity(ChartData chartData) {
         ChartDataDto dto = new ChartDataDto();
+        dto.setUserId(chartData.getUser().getId());  // ✅ User → userId로 변환
         dto.setTitle(chartData.getTitle());
         dto.setDescription(chartData.getDescription());
         dto.setCategory(chartData.getCategory());
@@ -44,7 +47,7 @@ public class ChartDataDto {
     }
 
     // ✅ DTO → 엔티티 변환
-    public ChartData toEntity() {
+    public ChartData toEntity(User user) {  // ✅ User 객체를 직접 받음
         String jsonData;
         try {
             jsonData = objectMapper.writeValueAsString(this.data);
@@ -53,6 +56,7 @@ public class ChartDataDto {
         }
 
         return ChartData.builder()
+                .user(user)  // ✅ User 객체 설정
                 .title(this.title)
                 .description(this.description)
                 .category(this.category)

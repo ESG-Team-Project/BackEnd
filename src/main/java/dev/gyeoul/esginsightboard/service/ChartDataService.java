@@ -1,8 +1,11 @@
 package dev.gyeoul.esginsightboard.service;
 
 import dev.gyeoul.esginsightboard.dto.ChartDataDto;
+import dev.gyeoul.esginsightboard.dto.UserDto;
 import dev.gyeoul.esginsightboard.entity.ChartData;
+import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.repository.ChartDataRepository;
+import dev.gyeoul.esginsightboard.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,13 +18,21 @@ import java.util.stream.Collectors;
 public class ChartDataService {
 
     private final ChartDataRepository chartDataRepository;
+    private final UserRepository userRepository;
 
     // ✅ 차트 데이터 저장 (DTO 적용)
     @Transactional
-    public ChartDataDto saveChartData(ChartDataDto dto) {
-        ChartData savedChartData = chartDataRepository.save(dto.toEntity());
+    public ChartDataDto saveChartData(ChartDataDto dto, UserDto userDto) {
+        // ✅ UserRepository를 이용하여 User 조회
+        User user = userRepository.findById(userDto.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userDto.getId()));
+
+        // ✅ User 객체를 포함하여 Entity 변환
+        ChartData savedChartData = chartDataRepository.save(dto.toEntity(user));
+
         return ChartDataDto.fromEntity(savedChartData);
     }
+
     // ✅ 여러 개의 ID로 차트 조회
     @Transactional(readOnly = true)
     public List<ChartDataDto> getChartsByIds(List<Long> ids) {
@@ -92,7 +103,25 @@ public class ChartDataService {
                 .map(ChartDataDto::fromEntity)
                 .collect(Collectors.toList());
     }
+    @Transactional
+    public ChartDataDto updateChartData(Long id, ChartDataDto dto, UserDto userDto) {
+        ChartData chartData = chartDataRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("ChartData not found with ID: " + id));
 
+        // ✅ 엔티티 내부에서 값 변경 (setter 없이)
+        chartData.update(
+                dto.getTitle(),
+                dto.getDescription(),
+                dto.getCategory(),
+                dto.getIndicator(),
+                dto.getChartType(),
+                dto.getChartGrid(),
+                dto.getData().toString()
+        );
+
+        // ✅ 트랜잭션이 끝나면 JPA가 자동으로 변경 사항을 반영 (save() 필요 없음)
+        return ChartDataDto.fromEntity(chartData);
+    }
 
     // ✅ 차트 데이터 삭제
     @Transactional
