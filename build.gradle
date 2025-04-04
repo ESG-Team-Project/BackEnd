@@ -35,6 +35,10 @@ dependencies {
     // CSV 파싱 의존성
     implementation 'org.apache.commons:commons-csv:1.10.0'
     
+    // Apache POI - DOCX 문서 생성을 위한 의존성
+    implementation 'org.apache.poi:poi:5.2.3'
+    implementation 'org.apache.poi:poi-ooxml:5.2.3'
+    
     // Swagger OpenAPI Dependencies
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.4.0'
     implementation 'io.swagger.core.v3:swagger-annotations:2.2.20'
