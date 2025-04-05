@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,8 +25,8 @@ import java.util.Objects;
 @Entity
 @Table(name = "companies")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
 @Builder
 public class Company {
     
@@ -50,87 +48,21 @@ public class Company {
      */
     @Column(nullable = false)
     private String name;
-    
-    /**
-     * 사업자등록번호
-     * <p>
-     * 회사의 공식 사업자등록번호입니다. 고유한 값이어야 합니다.
-     * 형식: 000-00-00000
-     * </p>
-     */
-    @Column(unique = true)
-    private String businessNumber;
-    
-    /**
-     * 업종
-     * <p>
-     * 회사의 주요 사업 영역 또는 업종을 나타냅니다.
-     * 예: "제조업", "서비스업", "금융업" 등
-     * </p>
-     */
+
+
     @Column
-    private String industry;
-    
-    /**
-     * 산업 섹터
-     * <p>
-     * 회사가 속한 산업 섹터를 나타냅니다.
-     * 예: "IT", "에너지", "헬스케어", "금융" 등
-     * </p>
-     */
+    private String companyName; // 회사명
+
     @Column
-    private String sector;
-    
-    /**
-     * 회사 설명
-     * <p>
-     * 회사에 대한 간략한 소개 또는 설명입니다.
-     * 최대 1000자까지 저장할 수 있습니다.
-     * </p>
-     */
-    @Column(length = 1000)
-    private String description;
-    
-    /**
-     * 웹사이트 URL
-     * <p>
-     * 회사의 공식 웹사이트 URL입니다.
-     * 예: "https://www.example.com"
-     * </p>
-     */
+    private String ceoName;     // 대표자명
+
     @Column
-    private String website;
-    
-    /**
-     * 직원 수
-     * <p>
-     * 회사의 전체 직원 수를 나타냅니다.
-     * </p>
-     */
+    private String companyCode; // 회사 코드
+
     @Column
-    private Integer employeeCount;
-    
-    /**
-     * 연간 매출액
-     * <p>
-     * 회사의 연간 매출액을 백만원 단위로
- 저장합니다.
-     * 예: 1000000은 10억원을 의미
-     * </p>
-     */
-    @Column
-    private Long annualRevenue;
-    
-    /**
-     * 이 회사와 연결된 GRI 데이터 항목 목록 (양방향 관계)
-     * <p>
-     * 회사에 속한 모든 GRI 데이터 항목을 조회할 수 있습니다.
-     * mappedBy 속성은 GriDataItem 엔티티의 company 필드가 이 관계의 주인임을 나타냅니다.
-     * </p>
-     */
-    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<GriDataItem> griDataItems = new ArrayList<>();
-    
+    private String companyPhoneNumber; // 회사 전화번호
+
+
     /**
      * 엔티티 생성 일시
      * <p>
@@ -150,37 +82,19 @@ public class Company {
      */
     @Column(nullable = false)
     private LocalDateTime updatedAt;
-    
-    /**
-     * Company 엔티티 생성을 위한 빌더 패턴
-     * <p>
-     * 사용 예시:
-     * <pre>
-     * Company company = Company.builder()
-     *     .name("한국ESG주식회사")
-     *     .businessNumber("123-45-67890")
-     *     .industry("제조업")
-     *     .sector("에너지")
-     *     .employeeCount(1000)
-     *     .annualRevenue(50000L) // 5억원
-     *     .build();
-     * </pre>
-     * </p>
-     */
+
     @Builder
-    public Company(Long id, String name, String businessNumber, String industry, String sector,
-                  String description, String website, Integer employeeCount, Long annualRevenue) {
+    public Company(Long id, String name, String companyName, String ceoName, String companyCode, String companyPhoneNumber, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
-        this.businessNumber = businessNumber;
-        this.industry = industry;
-        this.sector = sector;
-        this.description = description;
-        this.website = website;
-        this.employeeCount = employeeCount;
-        this.annualRevenue = annualRevenue;
+        this.companyName = companyName;
+        this.ceoName = ceoName;
+        this.companyCode = companyCode;
+        this.companyPhoneNumber = companyPhoneNumber;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
-    
+
     /**
      * 엔티티 생성 시 호출되어 생성 시간과 수정 시간을 현재 시간으로 설정
      * <p>
@@ -205,70 +119,7 @@ public class Company {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-    
-    /**
-     * 회사 정보 업데이트
-     * <p>
-     * 회사의 기본 정보를 업데이트합니다. ID와 생성일은 변경되지 않습니다.
-     * </p>
-     * 
-     * @param name 새 회사명 (null이면 변경 안 함)
-     * @param industry 새 업종 (null이면 변경 안 함)
-     * @param sector 새 섹터 (null이면 변경 안 함)
-     * @param description 새 설명 (null이면 변경 안 함)
-     * @param website 새 웹사이트 (null이면 변경 안 함)
-     * @param employeeCount 새 직원 수 (null이면 변경 안 함)
-     * @param annualRevenue 새 연간 매출액 (null이면 변경 안 함)
-     */
-    public void update(String name, String industry, String sector, String description,
-                      String website, Integer employeeCount, Long annualRevenue) {
-        if (name != null) this.name = name;
-        if (industry != null) this.industry = industry;
-        if (sector != null) this.sector = sector;
-        if (description != null) this.description = description;
-        if (website != null) this.website = website;
-        if (employeeCount != null) this.employeeCount = employeeCount;
-        if (annualRevenue != null) this.annualRevenue = annualRevenue;
-    }
-    
-    /**
-     * 사업자등록번호 업데이트
-     * <p>
-     * 사업자등록번호는 중요한 식별 정보이므로 별도의 메서드로 관리합니다.
-     * </p>
-     * 
-     * @param businessNumber 새 사업자등록번호
-     */
-    public void updateBusinessNumber(String businessNumber) {
-        this.businessNumber = businessNumber;
-    }
-    
-    /**
-     * GRI 데이터 항목 추가
-     * <p>
-     * 이 회사에 GRI 데이터 항목을 추가하고 양방향 관계를 설정합니다.
-     * </p>
-     * 
-     * @param griDataItem 추가할 GRI 데이터 항목
-     */
-    public void addGriDataItem(GriDataItem griDataItem) {
-        this.griDataItems.add(griDataItem);
-        griDataItem.setCompany(this);
-    }
-    
-    /**
-     * GRI 데이터 항목 제거
-     * <p>
-     * 이 회사에서 GRI 데이터 항목을 제거하고 양방향 관계를 해제합니다.
-     * </p>
-     * 
-     * @param griDataItem 제거할 GRI 데이터 항목
-     */
-    public void removeGriDataItem(GriDataItem griDataItem) {
-        this.griDataItems.remove(griDataItem);
-        griDataItem.setCompany(null);
-    }
-    
+
     /**
      * 두 회사 객체가 동일한지 비교
      * 
@@ -292,20 +143,5 @@ public class Company {
     public int hashCode() {
         return Objects.hash(id);
     }
-    
-    /**
-     * 회사 정보를 문자열로 표현
-     * 
-     * @return 회사 정보 문자열
-     */
-    @Override
-    public String toString() {
-        return "Company{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", businessNumber='" + businessNumber + '\'' +
-                ", industry='" + industry + '\'' +
-                ", sector='" + sector + '\'' +
-                '}';
-    }
+
 }

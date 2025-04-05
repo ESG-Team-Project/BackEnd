@@ -132,7 +132,7 @@ public class CsvImportService {
         }
 
         // 회사 존재 여부 확인
-        Company company = companyRepository.findByName(user.getCompanyName())
+        Company company = companyRepository.findByCompanyName(user.getCompanyName())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "회사명 '" + user.getCompanyName() + "'에 해당하는 회사를 찾을 수 없습니다."));
 

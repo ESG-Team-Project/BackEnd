@@ -1,5 +1,6 @@
 package dev.gyeoul.esginsightboard.config;
 
+import dev.gyeoul.esginsightboard.entity.Company;
 import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.repository.UserRepository;
 import dev.gyeoul.esginsightboard.util.JwtTokenUtil;
@@ -24,14 +25,16 @@ public class UserDataInitializer {
         return args -> {
             // 테스트 계정이 없을 경우에만 생성
             if (!userRepository.existsByEmail("admin@example.com")) {
+                Company company = Company.builder()
+                        .name("ESG 인사이트")
+                        .companyCode("ESG")
+                        .companyPhoneNumber("010-1234-5678")
+                        .build();
                 User admin = User.builder()
                         .email("admin@example.com")
                         .password(passwordEncoder.encode("admin123"))
                         .name("관리자")
-                        .department("경영지원팀")
-                        .position("ESG 담당자")
-                        .companyName("ESG 인사이트")
-                        .phoneNumber("010-1234-5678")
+                        .company(company)
                         .accountNonExpired(true)
                         .accountNonLocked(true)
                         .credentialsNonExpired(true)
@@ -44,10 +47,7 @@ public class UserDataInitializer {
                         .email("user@example.com")
                         .password(passwordEncoder.encode("user123"))
                         .name("사용자")
-                        .department("ESG팀")
-                        .position("팀원")
-                        .companyName("ESG 인사이트")
-                        .phoneNumber("010-8765-4321")
+                        .company(company)
                         .accountNonExpired(true)
                         .accountNonLocked(true)
                         .credentialsNonExpired(true)
