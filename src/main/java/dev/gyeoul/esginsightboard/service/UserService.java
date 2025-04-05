@@ -214,17 +214,15 @@ public class UserService {
 
     // 회사 데이터 업데이트
     @Transactional
-    public void updateCompany(Long userId, CompanyUpdateRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
-
-        Company company = user.getCompany();
+    public void updateCompany(Long companyId, CompanyUpdateRequest request) {
+        Company company  = companyRepository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + companyId));
 
         company.setName(request.getCompanyName());
         company.setCeoName(request.getCeoName());
         company.setCompanyCode(request.getCompanyCode());
         company.setCompanyPhoneNumber(request.getCompanyPhoneNumber());
 
-        userRepository.save(user);
+        companyRepository.save(company);
     }
 } 
