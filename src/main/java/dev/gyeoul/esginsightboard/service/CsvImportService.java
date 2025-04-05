@@ -226,8 +226,7 @@ public class CsvImportService {
             try {
                 Map<String, String> row = csvData.get(i);
                 GriDataItem dataItem = convertRowToGriDataItem(row);
-                dataItem.setCompany(company);
-                
+
                 // 데이터베이스에 저장
                 griDataItemRepository.save(dataItem);
                 processedCount++;
