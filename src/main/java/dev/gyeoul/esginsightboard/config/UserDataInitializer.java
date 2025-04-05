@@ -3,6 +3,7 @@ package dev.gyeoul.esginsightboard.config;
 import dev.gyeoul.esginsightboard.entity.Company;
 import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.repository.UserRepository;
+import dev.gyeoul.esginsightboard.repository.CompanyRepository;
 import dev.gyeoul.esginsightboard.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class UserDataInitializer {
 
     private final UserRepository userRepository;
+    private final CompanyRepository companyRepository;
     private final JwtTokenUtil jwtTokenUtil;
     private final PasswordEncoder passwordEncoder;
     
@@ -30,6 +32,9 @@ public class UserDataInitializer {
                         .companyCode("ESG")
                         .companyPhoneNumber("010-1234-5678")
                         .build();
+                
+                company = companyRepository.save(company);
+                
                 User admin = User.builder()
                         .email("admin@example.com")
                         .password(passwordEncoder.encode("admin123"))
