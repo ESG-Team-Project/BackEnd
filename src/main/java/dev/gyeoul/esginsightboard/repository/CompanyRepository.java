@@ -19,7 +19,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
      * @param name 회사명
      * @return 회사명에 해당하는 회사 정보
      */
-    Optional<Company> findByCompanyName(String name);
+    Optional<Company> findByName(String name);
     
     /**
      * 회사명에 포함된 문자열로 회사를 검색

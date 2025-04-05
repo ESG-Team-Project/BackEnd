@@ -220,7 +220,7 @@ public class UserService {
 
         Company company = user.getCompany();
 
-        company.setCompanyName(request.getCompanyName());
+        company.setName(request.getCompanyName());
         company.setCeoName(request.getCeoName());
         company.setCompanyCode(request.getCompanyCode());
         company.setCompanyPhoneNumber(request.getCompanyPhoneNumber());

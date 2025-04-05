@@ -40,7 +40,7 @@ public class UserDto {
                 .id(user.getId())
                 .email(user.getEmail())
                 .name(user.getName())
-                .companyName(user.getCompany().getCompanyName())
+                .companyName(user.getCompany().getName())
                 .ceoName(user.getCompany().getCeoName())
                 .companyCode(user.getCompany().getCompanyCode())
                 .companyPhoneNumber(user.getCompany().getCompanyPhoneNumber())
@@ -57,7 +57,7 @@ public class UserDto {
      */
     public User toEntity() {
         Company company = Company.builder()
-                .companyName(this.companyName)
+                .name(this.companyName)
                 .ceoName(this.ceoName)
                 .companyCode(this.companyCode)
                 .companyPhoneNumber(this.companyPhoneNumber).build();

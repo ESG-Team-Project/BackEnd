@@ -49,10 +49,6 @@ public class Company {
     @Column(nullable = false)
     private String name;
 
-
-    @Column
-    private String companyName; // 회사명
-
     @Column
     private String ceoName;     // 대표자명
 
@@ -84,10 +80,9 @@ public class Company {
     private LocalDateTime updatedAt;
 
     @Builder
-    public Company(Long id, String name, String companyName, String ceoName, String companyCode, String companyPhoneNumber, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Company(Long id, String name, String ceoName, String companyCode, String companyPhoneNumber, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
-        this.companyName = companyName;
         this.ceoName = ceoName;
         this.companyCode = companyCode;
         this.companyPhoneNumber = companyPhoneNumber;
