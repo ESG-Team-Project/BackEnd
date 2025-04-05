@@ -1,9 +1,6 @@
 package dev.gyeoul.esginsightboard.service;
 
-import dev.gyeoul.esginsightboard.dto.LoginRequest;
-import dev.gyeoul.esginsightboard.dto.LoginResponse;
-import dev.gyeoul.esginsightboard.dto.SignupRequest;
-import dev.gyeoul.esginsightboard.dto.UserDto;
+import dev.gyeoul.esginsightboard.dto.*;
 import dev.gyeoul.esginsightboard.entity.Company;
 import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.exception.UserAlreadyExistsException;
@@ -17,7 +14,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import dev.gyeoul.esginsightboard.dto.UserUpdateRequest;
 
 import java.util.Optional;
 
@@ -218,5 +214,19 @@ public class UserService {
         }
 //        // 저장 (JPA 엔티티 변경 감지 dirty checking)
 //        return UserDto.toEntity(user);
+    }
+
+    // 회사 데이터 업데이트
+    @Transactional
+    public void updateCompany(Long userId, CompanyUpdateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        user.setCompanyName(request.getCompanyName());
+        user.setCeoName(request.getCeoName());
+        user.setCompanyCode(request.getCompanyCode());
+        user.setCompanyPhoneNumber(request.getCompanyPhoneNumber());
+
+        userRepository.save(user);
     }
 } 

@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
@@ -194,7 +195,13 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // 마이페이지 회원정보 저장 API
+    /**
+     * 마이페이지 회원정보 저장 API
+     *
+     * @param request 사용자가 보낸 회원정보 수정 요청 (이름, 이메일, 비밀번호, 전화번호)
+     * @param req HTTP 요청 객체 (JWT 토큰 검증 결과 포함)
+     * @return 수정 성공 시 요청 내용을 그대로 반환 (HTTP 200), 인증 실패 시 401 반환
+     */
     @PutMapping("/update")
     @Operation(
             summary = "사용자 정보 수정",
@@ -217,6 +224,28 @@ public class UserController {
         // 성공적으로 수정된 경우, 원래 요청 객체를 그대로 반환
         return ResponseEntity.ok(request);
     }
+
+    // 회사 정보 수정
+    @PutMapping("/update-company")
+    @Operation(
+            summary = "회사 정보 수정",
+            description = "마이페이지에서 회사 정보 수정"
+    )
+    @SecurityRequirement(name = "bearerAuth")
+    public ResponseEntity<CompanyUpdateRequest> updateCompany(
+            @RequestBody CompanyUpdateRequest request,
+            HttpServletRequest req
+    ) {
+        UserDto currentUser = (UserDto) req.getAttribute("user");
+
+        if(currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        userService.updateCompany(currentUser.getCompanyId(), request);
+        return ResponseEntity.ok(request);
+    }
+
 
     /**
      * 사용자 정보에서 필요한 정보만 추출하는 메서드
