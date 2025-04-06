@@ -201,17 +201,7 @@ public class GriDataItem {
     @Column(nullable = false)
     private String category;
     
-    /**
-     * 이 데이터가 속한 회사 (다대일 관계)
-     * <p>
-     * 하나의 회사는 여러 GRI 데이터 항목을 가질 수 있습니다.
-     * 이 관계는 지연 로딩(LAZY)으로 설정되어 있어, 필요할 때만 회사 정보를 불러옵니다.
-     * </p>
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "company_id")
-    private Company company;
-    
+
     /**
      * 엔티티 생성 일시
      * <p>
@@ -252,8 +242,8 @@ public class GriDataItem {
     public GriDataItem(Long id, String standardCode, String disclosureCode, String disclosureTitle,
                        String disclosureValue, String description, Double numericValue, String unit,
                        LocalDate reportingPeriodStart, LocalDate reportingPeriodEnd,
-                       String verificationStatus, String verificationProvider, String category,
-                       Company company) {
+                       String verificationStatus, String verificationProvider, String category
+                      ) {
         this.id = id;
         this.standardCode = standardCode;
         this.disclosureCode = disclosureCode;
@@ -267,7 +257,6 @@ public class GriDataItem {
         this.verificationStatus = verificationStatus != null ? verificationStatus : VerificationStatus.UNVERIFIED.getDisplayName();
         this.verificationProvider = verificationProvider;
         this.category = category;
-        this.company = company;
     }
     
     /**
@@ -295,18 +284,7 @@ public class GriDataItem {
         this.updatedAt = LocalDateTime.now();
     }
     
-    /**
-     * 회사 설정 메서드
-     * <p>
-     * 이 메서드는 GRI 데이터 항목을 특정 회사와 연결할 때 사용합니다.
-     * </p>
-     * 
-     * @param company 연결할 회사 엔티티 (null일 수 있음)
-     */
-    public void setCompany(Company company) {
-        this.company = company;
-    }
-    
+
     /**
      * 검증 상태 설정 메서드
      * <p>

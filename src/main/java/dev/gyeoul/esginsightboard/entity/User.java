@@ -1,10 +1,7 @@
 package dev.gyeoul.esginsightboard.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,6 +17,7 @@ import java.util.Collections;
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA에 필요한 기본 생성자를 protected로 제한
 public class User implements UserDetails {
 
@@ -35,25 +33,6 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private String name;
-
-    @Column
-    private String department;  // 부서
-
-    @Column
-    private String position;    // 직급/직책
-
-    @Column
-    private String companyName; // 회사명
-    
-    @Column
-    private String ceoName;     // 대표자명
-    
-    @Column
-    private String companyCode; // 회사 코드
-    
-    @Column
-    private String companyPhoneNumber; // 회사 전화번호
-
     @Column
     private String phoneNumber; // 개인 전화번호
 
@@ -87,21 +66,13 @@ public class User implements UserDetails {
      * User 엔티티 생성을 위한 빌더 패턴 구현
      */
     @Builder
-    public User(Long id, String email, String password, String name, String department, 
-                String position, String companyName, String ceoName, String companyCode, 
-                String companyPhoneNumber, String phoneNumber, Company company,
+    public User(Long id, String email, String password, String name, String phoneNumber, Company company,
                 boolean accountNonExpired, boolean accountNonLocked, 
                 boolean credentialsNonExpired, boolean enabled) {
         this.id = id;
         this.email = email;
         this.password = password;
         this.name = name;
-        this.department = department;
-        this.position = position;
-        this.companyName = companyName;
-        this.ceoName = ceoName;
-        this.companyCode = companyCode;
-        this.companyPhoneNumber = companyPhoneNumber;
         this.phoneNumber = phoneNumber;
         this.company = company;
         this.accountNonExpired = accountNonExpired;
@@ -165,4 +136,4 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return this.enabled;
     }
-} 
+}

@@ -244,12 +244,6 @@ public class GriDataItemDto {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt());
 
-        // 회사 정보 설정 (null 체크)
-        if (entity.getCompany() != null) {
-            builder.companyId(entity.getCompany().getId())
-                   .companyName(entity.getCompany().getName());
-        }
-        
         return builder.build();
     }
 
