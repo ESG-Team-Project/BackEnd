@@ -40,7 +40,7 @@ public class AuditLog {
     private String entityType;
 
     @Column(name = "entity_id", nullable = false)
-    private Long entityId;
+    private String entityId;
 
     @Column(nullable = false)
     private String action;
