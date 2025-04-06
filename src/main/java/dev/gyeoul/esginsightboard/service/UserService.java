@@ -1,9 +1,6 @@
 package dev.gyeoul.esginsightboard.service;
 
-import dev.gyeoul.esginsightboard.dto.LoginRequest;
-import dev.gyeoul.esginsightboard.dto.LoginResponse;
-import dev.gyeoul.esginsightboard.dto.SignupRequest;
-import dev.gyeoul.esginsightboard.dto.UserDto;
+import dev.gyeoul.esginsightboard.dto.*;
 import dev.gyeoul.esginsightboard.entity.Company;
 import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.exception.UserAlreadyExistsException;
@@ -68,8 +65,8 @@ public class UserService {
      * @return 찾거나 생성된 회사 엔티티
      */
     private Company findOrCreateCompany(SignupRequest request) {
-        // 회사 코드로 회사 정보 조회
-        Optional<Company> existingCompany = companyRepository.findByBusinessNumber(request.getCompanyCode());
+        // 회사 코드로 회사 정보 조회12
+        Optional<Company> existingCompany = companyRepository.findByCompanyCode(request.getCompanyCode());
         
         // 존재하면 기존 회사 정보 반환
         if (existingCompany.isPresent()) {
@@ -79,7 +76,7 @@ public class UserService {
         // 존재하지 않으면 새로운 회사 정보 생성 및 저장
         Company newCompany = Company.builder()
                 .name(request.getCompanyName())
-                .businessNumber(request.getCompanyCode())
+                .companyCode(request.getCompanyCode())
                 .build();
         
         return companyRepository.save(newCompany);
@@ -109,10 +106,6 @@ public class UserService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .name(request.getName())
-                .companyName(request.getCompanyName())
-                .ceoName(request.getCeoName())
-                .companyCode(request.getCompanyCode())
-                .companyPhoneNumber(request.getCompanyPhoneNumber())
                 .phoneNumber(request.getPhoneNumber())
                 .company(company)  // 회사 엔티티 연결
                 .build();
@@ -196,5 +189,42 @@ public class UserService {
     public Optional<UserDto> getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .map(UserDto::fromEntity);
+    }
+
+    // 사용자 데이터 업데이트
+    @Transactional
+    public void updateUser(Long userId, UserUpdateRequest request) {
+        // 1. 사용자 ID로 기존 사용자 조회 (없으면 예외 발생)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        // 2. 필드 수정
+        user.setName(request.getName());
+        user.setEmail(request.getEmail());
+        user.setPhoneNumber(request.getPhoneNumber());
+
+        // 3. 비밀번호가 전달된 경우에만 수정 (공란이면 무시)
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            String encoderPassword =  passwordEncoder.encode(request.getPassword());
+            user.setPassword(encoderPassword);
+        }
+//        // 저장 (JPA 엔티티 변경 감지 dirty checking)
+//        return UserDto.toEntity(user);
+    }
+
+    // 회사 데이터 업데이트
+    @Transactional
+    public void updateCompany(Long userId, CompanyUpdateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        Company company = user.getCompany();
+
+        company.setName(request.getCompanyName());
+        company.setCeoName(request.getCeoName());
+        company.setCompanyCode(request.getCompanyCode());
+        company.setCompanyPhoneNumber(request.getCompanyPhoneNumber());
+
+        userRepository.save(user);
     }
 } 

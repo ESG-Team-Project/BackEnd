@@ -28,38 +28,8 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
      * @return 검색 조건에 맞는 회사 목록
      */
     List<Company> findByNameContaining(String name);
-    
-    /**
-     * 사업자등록번호로 회사를 조회
-     * 
-     * @param businessNumber 사업자등록번호
-     * @return 사업자등록번호에 해당하는 회사 정보
-     */
-    Optional<Company> findByBusinessNumber(String businessNumber);
-    
-    /**
-     * 업종으로 회사 목록을 조회
-     * 
-     * @param industry 업종명
-     * @return 업종에 해당하는 회사 목록
-     */
-    List<Company> findByIndustry(String industry);
-    
-    /**
-     * 섹터로 회사 목록을 조회
-     * 
-     * @param sector 섹터명
-     * @return 섹터에 해당하는 회사 목록
-     */
-    List<Company> findBySector(String sector);
-    
-    /**
-     * 사업자등록번호 존재 여부 확인
-     * 
-     * @param businessNumber 사업자등록번호
-     * @return 존재 여부
-     */
-    boolean existsByBusinessNumber(String businessNumber);
 
-    Optional<Object> findByid(Long id);
+
+    Optional<Company> findByCompanyCode(String code);
+
 }
