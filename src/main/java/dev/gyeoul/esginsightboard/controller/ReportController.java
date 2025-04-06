@@ -1,5 +1,6 @@
 package dev.gyeoul.esginsightboard.controller;
 
+import dev.gyeoul.esginsightboard.dto.UserDto;
 import dev.gyeoul.esginsightboard.service.ReportGenerationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -7,9 +8,12 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -79,6 +83,82 @@ public class ReportController {
         
         // 파일명 생성 (회사 ID + 현재 날짜)
         String filename = "ESG_Report_Company_" + companyId + "_" + 
+                LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".docx";
+        
+        // 한글 파일명을 위한 인코딩
+        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8.toString())
+                .replaceAll("\\+", "%20");
+        
+        // HTTP 헤더 설정
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentDispositionFormData("attachment", encodedFilename);
+        headers.setContentLength(report.length);
+        
+        // 응답 반환
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(report);
+    }
+    
+    /**
+     * 로그인한 사용자의 회사에 대한 ESG 보고서를 생성하고 다운로드합니다.
+     * 
+     * @param request HTTP 요청 객체 (JWT 토큰 검증 결과 포함)
+     * @return 생성된 DOCX 보고서 파일
+     * @throws IOException 파일 생성 중 오류 발생 시
+     */
+    @Operation(
+        summary = "내 회사 ESG 보고서 다운로드",
+        description = "로그인한 사용자의 회사 데이터를 기반으로 GRI 프레임워크에 맞춘 ESG 보고서를 DOCX 형식으로 생성하여 다운로드합니다."
+    )
+    @SecurityRequirement(name = "bearerAuth")
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "ESG 보고서 다운로드 성공",
+            content = @Content(mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        ),
+        @ApiResponse(
+            responseCode = "401",
+            description = "인증 실패 또는 토큰 없음",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "보고서 생성 중 오류 발생 (ESG 데이터 없음)",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "500",
+            description = "서버 내부 오류",
+            content = @Content
+        )
+    })
+    @GetMapping("/my-company")
+    public ResponseEntity<byte[]> downloadMyCompanyReport(HttpServletRequest request) throws IOException {
+        // JWT 필터를 통해 주입된 현재 사용자 정보 꺼내기
+        UserDto currentUser = (UserDto) request.getAttribute("user");
+
+        // 인증되지 않은 경우 401 반환
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // 사용자의 회사 ID로 보고서 생성
+        Long companyId = currentUser.getCompanyId();
+        if (companyId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        // 보고서 생성 서비스 호출
+        byte[] report = reportGenerationService.generateEsgReportByCompanyId(companyId);
+        
+        // 파일명 생성 (회사명 + 현재 날짜)
+        String companyName = currentUser.getCompanyName() != null ? 
+                currentUser.getCompanyName() : "Company_" + companyId;
+        
+        String filename = "ESG_Report_" + companyName + "_" + 
                 LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".docx";
         
         // 한글 파일명을 위한 인코딩

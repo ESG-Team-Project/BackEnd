@@ -201,7 +201,16 @@ public class GriDataItem {
     @Column(nullable = false)
     private String category;
     
-
+    /**
+     * 이 데이터 항목이 속하는 회사
+     * <p>
+     * N:1 관계로, 여러 GRI 데이터 항목이 하나의 회사에 속할 수 있습니다.
+     * </p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    private Company company;
+    
     /**
      * 엔티티 생성 일시
      * <p>
@@ -242,7 +251,8 @@ public class GriDataItem {
     public GriDataItem(Long id, String standardCode, String disclosureCode, String disclosureTitle,
                        String disclosureValue, String description, Double numericValue, String unit,
                        LocalDate reportingPeriodStart, LocalDate reportingPeriodEnd,
-                       String verificationStatus, String verificationProvider, String category
+                       String verificationStatus, String verificationProvider, String category,
+                       Company company
                       ) {
         this.id = id;
         this.standardCode = standardCode;
@@ -257,6 +267,7 @@ public class GriDataItem {
         this.verificationStatus = verificationStatus != null ? verificationStatus : VerificationStatus.UNVERIFIED.getDisplayName();
         this.verificationProvider = verificationProvider;
         this.category = category;
+        this.company = company;
     }
     
     /**
@@ -298,15 +309,15 @@ public class GriDataItem {
     }
     
     /**
-     * 검증 상태 직접 설정 메서드 (문자열)
+     * 검증 상태 설정 메서드 (문자열 버전)
      * <p>
      * 이 메서드는 문자열로 GRI 데이터 항목의 검증 상태를 변경할 때 사용합니다.
      * </p>
      * 
-     * @param statusName 설정할 검증 상태 문자열
+     * @param statusDisplayName 설정할 검증 상태 문자열
      */
-    public void setVerificationStatusByName(String statusName) {
-        this.verificationStatus = statusName;
+    public void setVerificationStatus(String statusDisplayName) {
+        this.verificationStatus = statusDisplayName;
     }
     
     /**
@@ -316,6 +327,18 @@ public class GriDataItem {
      */
     public VerificationStatus getVerificationStatusEnum() {
         return VerificationStatus.fromDisplayName(this.verificationStatus);
+    }
+    
+    /**
+     * 회사 설정 메서드
+     * <p>
+     * 이 메서드는 GRI 데이터 항목이 속한 회사를 설정할 때 사용합니다.
+     * </p>
+     * 
+     * @param company 설정할 회사 엔티티
+     */
+    public void setCompany(Company company) {
+        this.company = company;
     }
     
     /**

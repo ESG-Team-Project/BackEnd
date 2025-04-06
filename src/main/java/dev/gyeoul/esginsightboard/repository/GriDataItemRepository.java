@@ -59,6 +59,27 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long> 
     List<GriDataItem> findByVerificationStatus(String verificationStatus);
 
     /**
+     * 특정 회사에 속하는 GRI 데이터 항목을 조회
+     * 
+     * @param companyId 회사 ID
+     * @return 회사에 속하는 데이터 항목 목록
+     * 
+     * 사용 예시: repository.findByCompanyId(1L) - 1번 회사의 모든 GRI 데이터 조회
+     */
+    List<GriDataItem> findByCompanyId(Long companyId);
+    
+    /**
+     * 특정 회사에 속하고 특정 카테고리에 해당하는 GRI 데이터 항목을 조회
+     * 
+     * @param companyId 회사 ID
+     * @param category 카테고리 (E, S, G)
+     * @return 조건에 맞는 데이터 항목 목록
+     * 
+     * 사용 예시: repository.findByCompanyIdAndCategory(1L, "E") - 1번 회사의 환경 관련 데이터 조회
+     */
+    List<GriDataItem> findByCompanyIdAndCategory(Long companyId, String category);
+
+    /**
      * 특정 보고 기간과 겹치는 GRI 데이터 항목을 조회
      * 
      * 쿼리 조건: reportingPeriodStart <= endDate AND reportingPeriodEnd >= startDate

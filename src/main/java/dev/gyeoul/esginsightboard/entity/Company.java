@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,7 +29,7 @@ import java.util.Objects;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Builder
+@AllArgsConstructor
 public class Company {
     
     /**
@@ -49,15 +51,85 @@ public class Company {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * 대표자명
+     * <p>
+     * 회사 대표자(CEO)의 이름입니다.
+     * </p>
+     */
     @Column
-    private String ceoName;     // 대표자명
+    private String ceoName;
 
+    /**
+     * 회사 코드
+     * <p>
+     * 회사를 식별하는 고유 코드입니다. 주로 사용자가 회사 가입 시 사용합니다.
+     * </p>
+     */
     @Column
-    private String companyCode; // 회사 코드
+    private String companyCode;
 
+    /**
+     * 회사 대표 전화번호
+     * <p>
+     * 회사의 대표 전화번호입니다. 형식은 "XX-XXXX-XXXX"입니다.
+     * </p>
+     */
     @Column
-    private String companyPhoneNumber; // 회사 전화번호
-
+    private String companyPhoneNumber;
+    
+    /**
+     * 사업자등록번호
+     * <p>
+     * 회사의 공식 사업자등록번호입니다. 형식은 "XXX-XX-XXXXX"입니다.
+     * </p>
+     */
+    @Column(length = 20)
+    private String businessNumber;
+    
+    /**
+     * 업종
+     * <p>
+     * 회사의 주요 업종 정보입니다.
+     * </p>
+     */
+    @Column(length = 100)
+    private String industry;
+    
+    /**
+     * 섹터
+     * <p>
+     * 회사가 속한 시장 섹터 정보입니다.
+     * </p>
+     */
+    @Column(length = 100)
+    private String sector;
+    
+    /**
+     * 종업원 수
+     * <p>
+     * 회사의 총 종업원 수입니다.
+     * </p>
+     */
+    private Integer employeeCount;
+    
+    /**
+     * 회사 설명
+     * <p>
+     * 회사에 대한 간략한 설명이나 소개글입니다.
+     * </p>
+     */
+    @Column(length = 2000)
+    private String description;
+    
+    /**
+     * 이 회사에 속하는 GRI 데이터 항목 목록
+     * <p>
+     * 1:N 관계로, 하나의 회사는 여러 GRI 데이터 항목을 가질 수 있습니다.
+     * </p>
+     */
+    @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<GriDataItem> griDataItems = new ArrayList<>();
 
     /**
      * 엔티티 생성 일시
@@ -80,14 +152,22 @@ public class Company {
     private LocalDateTime updatedAt;
 
     @Builder
-    public Company(Long id, String name, String ceoName, String companyCode, String companyPhoneNumber, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Company(Long id, String name, String ceoName, String companyCode, String companyPhoneNumber, 
+                  String businessNumber, String industry, String sector, Integer employeeCount, 
+                  String description, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
         this.ceoName = ceoName;
         this.companyCode = companyCode;
         this.companyPhoneNumber = companyPhoneNumber;
+        this.businessNumber = businessNumber;
+        this.industry = industry;
+        this.sector = sector;
+        this.employeeCount = employeeCount;
+        this.description = description;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.griDataItems = new ArrayList<>();
     }
 
     /**
@@ -116,6 +196,19 @@ public class Company {
     }
 
     /**
+     * GRI 데이터 항목을 이 회사에 추가하는 편의 메서드
+     * <p>
+     * 양방향 관계를 올바르게 설정합니다.
+     * </p>
+     * 
+     * @param griDataItem 추가할 GRI 데이터 항목
+     */
+    public void addGriDataItem(GriDataItem griDataItem) {
+        this.griDataItems.add(griDataItem);
+        griDataItem.setCompany(this);
+    }
+
+    /**
      * 두 회사 객체가 동일한지 비교
      * 
      * @param o 비교할 객체
@@ -138,5 +231,4 @@ public class Company {
     public int hashCode() {
         return Objects.hash(id);
     }
-
 }
