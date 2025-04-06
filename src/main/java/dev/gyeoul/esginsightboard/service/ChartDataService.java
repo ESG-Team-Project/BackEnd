@@ -116,7 +116,7 @@ public class ChartDataService {
                 dto.getIndicator(),
                 dto.getChartType(),
                 dto.getChartGrid(),
-                dto.getData().toString()
+                dto.getDataSets().toString()
         );
 
         // ✅ 트랜잭션이 끝나면 JPA가 자동으로 변경 사항을 반영 (save() 필요 없음)
