@@ -37,7 +37,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * @param pageable 페이지 정보
      * @return 페이지네이션이 적용된 감사 로그 목록
      */
-    Page<AuditLog> findByEntityTypeAndEntityId(String entityType, Long entityId, Pageable pageable);
+    Page<AuditLog> findByEntityTypeAndEntityId(String entityType, String entityId, Pageable pageable);
 
     /**
      * 특정 사용자에 의한 감사 로그를 조회합니다.
@@ -95,7 +95,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * @return 최근 감사 로그 목록
      */
     @Query("SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND a.entityId = :entityId ORDER BY a.createdAt DESC")
-    List<AuditLog> findRecentLogsByEntity(@Param("entityType") String entityType, @Param("entityId") Long entityId, Pageable pageable);
+    List<AuditLog> findRecentLogsByEntity(@Param("entityType") String entityType, @Param("entityId") String entityId, Pageable pageable);
 
     /**
      * 특정 사용자의 최근 활동을 조회합니다.
@@ -107,16 +107,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a FROM AuditLog a WHERE a.username = :username ORDER BY a.createdAt DESC")
     List<AuditLog> findRecentLogsByUsername(@Param("username") String username, Pageable pageable);
 
-    /**
-     * 엔티티 타입으로 감사 로그 조회
-     */
-    Page<AuditLog> findByEntityType(String entityType, Pageable pageable);
-    
-    /**
-     * 엔티티 타입 및 ID로 감사 로그 조회
-     */
-    Page<AuditLog> findByEntityTypeAndEntityId(String entityType, String entityId, Pageable pageable);
-    
     /**
      * 엔티티 타입 및 ID 포함 문자열로 감사 로그 조회
      */

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -43,27 +44,31 @@ public class GriDataItemMapper {
         dto.setVerificationStatus(entity.getVerificationStatus());
         dto.setVerificationProvider(entity.getVerificationProvider());
         dto.setCategory(entity.getCategory());
-        dto.setCompanyId(entity.getCompany() != null ? entity.getCompany().getId() : null);
-        dto.setCompanyName(entity.getCompany() != null ? entity.getCompany().getName() : null);
+        
+        if (entity.getCompany() != null) {
+            dto.setCompanyId(entity.getCompany().getId());
+            dto.setCompanyName(entity.getCompany().getName());
+        }
+        
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         
         // 시계열 데이터 처리
-        if (entity.getDisclosureValue() != null && 
-            entity.getDisclosureValue().startsWith("[") && 
-            entity.getDisclosureValue().endsWith("]")) {
-            try {
+        try {
+            if (dto.getDisclosureValue() != null && 
+                dto.getDisclosureValue().startsWith("[") && 
+                dto.getDisclosureValue().endsWith("]")) {
                 ObjectMapper mapper = new ObjectMapper();
                 mapper.registerModule(new JavaTimeModule());
                 
                 List<TimeSeriesDataPointDto> timeSeriesData = mapper.readValue(
-                    entity.getDisclosureValue(),
+                    dto.getDisclosureValue(),
                     new TypeReference<List<TimeSeriesDataPointDto>>() {}
                 );
                 dto.setTimeSeriesData(timeSeriesData);
-            } catch (Exception e) {
-                log.error("시계열 데이터 파싱 오류: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.error("시계열 데이터 파싱 오류: {}", e.getMessage());
         }
         
         return dto;
@@ -93,7 +98,12 @@ public class GriDataItemMapper {
                     .orElse(null);
                 
                 if (latest != null) {
-                    dto.setNumericValue(latest.getValue());
+                    try {
+                        dto.setNumericValue(Double.parseDouble(latest.getValue()));
+                    } catch (NumberFormatException e) {
+                        log.warn("시계열 데이터 값을 Double로 변환할 수 없습니다: {}", latest.getValue());
+                        dto.setNumericValue(null);
+                    }
                     dto.setUnit(latest.getUnit());
                 }
             } catch (Exception e) {
@@ -101,10 +111,13 @@ public class GriDataItemMapper {
             }
         }
         
+        // 엔티티 생성 및 설정
         GriDataItem entity = new GriDataItem();
+        
         if (dto.getId() != null) {
             entity.setId(dto.getId());
         }
+        
         entity.setStandardCode(dto.getStandardCode());
         entity.setDisclosureCode(dto.getDisclosureCode());
         entity.setDisclosureTitle(dto.getDisclosureTitle());
