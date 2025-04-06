@@ -1,18 +1,12 @@
 spring:
   application:
     name: ESGInsightBoard
+  profiles:
+    active: dev
   sql:
     init:
       mode: never
       schema-locations: classpath:schema.sql
-  # Flyway 설정
-  flyway:
-    enabled: false
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/ESG
-    username: postgres
-    password: postgres
   jpa:
     hibernate:
       ddl-auto: update
@@ -59,31 +53,3 @@ jwt:
   prefix: Bearer
   secret: ${JWT_SECRET:}  # 환경 변수에서 시크릿 키를 가져오거나, 비어있으면 자동 생성
   expiration: 86400000  # 24시간 (밀리초)
-
-# 프로필 설정
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-  flyway:
-    clean-disabled: false
-    clean-on-validation-error: true
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        format_sql: true
-        show_sql: true
-
----
-spring:
-  config:
-    activate:
-      on-profile: prod
-  flyway:
-    clean-disabled: true
-  jpa:
-    hibernate:
-      ddl-auto: validate
