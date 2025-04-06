@@ -34,7 +34,6 @@ dependencies {
     
     // Flyway 의존성 추가
     implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-postgresql:9.22.3'
     
     // CSV 파싱 의존성
     implementation 'org.apache.commons:commons-csv:1.10.0'
