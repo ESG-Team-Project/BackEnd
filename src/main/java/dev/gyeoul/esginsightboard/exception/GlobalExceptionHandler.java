@@ -1,245 +1,231 @@
 package dev.gyeoul.esginsightboard.exception;
 
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.validation.FieldError;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.ServletWebRequest;
-import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * 애플리케이션 전체에서 발생하는 예외를 처리하는 전역 예외 처리기
- * 
+ * 전역 예외 처리 컨트롤러 어드바이스
  * <p>
- * 다음과 같은 오류 응답 형식을 제공합니다:
- * <pre>
- * {
- *   "status": 400,
- *   "code": "VALIDATION_ERROR",
- *   "message": "입력값이 유효하지 않습니다.",
- *   "timestamp": "2023-05-15 12:34:56",
- *   "path": "/api/gri/1",
- *   "errors": [
- *     {
- *       "field": "email",
- *       "rejectedValue": "invalid-email",
- *       "message": "올바른 이메일 형식이 아닙니다."
- *     }
- *   ]
- * }
- * </pre>
+ * 애플리케이션 전체에서 발생하는 예외를 일관된 형식으로 처리합니다.
  * </p>
  */
 @Slf4j
 @RestControllerAdvice
-@ApiResponses(value = {
-    @ApiResponse(
-        responseCode = "400", 
-        description = "유효성 검증 실패",
-        content = @Content(mediaType = "application/json", 
-            schema = @Schema(implementation = ErrorResponse.class))
-    ),
-    @ApiResponse(
-        responseCode = "404", 
-        description = "리소스를 찾을 수 없음",
-        content = @Content(mediaType = "application/json", 
-            schema = @Schema(implementation = ErrorResponse.class))
-    ),
-    @ApiResponse(
-        responseCode = "500", 
-        description = "서버 내부 오류",
-        content = @Content(mediaType = "application/json", 
-            schema = @Schema(implementation = ErrorResponse.class))
-    )
-})
 public class GlobalExceptionHandler {
 
     /**
-     * 입력값 유효성 검증 실패 시 발생하는 예외 처리
+     * API 오류 응답 객체
      */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(
-            MethodArgumentNotValidException ex, WebRequest request) {
-        log.error("유효성 검증 실패: {}", ex.getMessage());
-        
-        List<ErrorResponse.ValidationError> validationErrors = new ArrayList<>();
-        ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = error instanceof FieldError ? ((FieldError) error).getField() : error.getObjectName();
-            Object rejectedValue = error instanceof FieldError ? ((FieldError) error).getRejectedValue() : "";
-            String errorMessage = error.getDefaultMessage();
-            
-            validationErrors.add(ErrorResponse.ValidationError.builder()
-                    .field(fieldName)
-                    .rejectedValue(String.valueOf(rejectedValue))
-                    .message(errorMessage)
-                    .build());
-        });
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.BAD_REQUEST.value())
-                .code("VALIDATION_ERROR")
-                .message("입력값 유효성 검증에 실패했습니다")
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .errors(validationErrors)
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    public static class ApiError {
+        private final LocalDateTime timestamp = LocalDateTime.now();
+        private final int status;
+        private final String error;
+        private final String message;
+        private Object details;
+
+        public ApiError(HttpStatus status, String message) {
+            this.status = status.value();
+            this.error = status.getReasonPhrase();
+            this.message = message;
+        }
+
+        public ApiError(HttpStatus status, String message, Object details) {
+            this(status, message);
+            this.details = details;
+        }
+
+        public LocalDateTime getTimestamp() {
+            return timestamp;
+        }
+
+        public int getStatus() {
+            return status;
+        }
+
+        public String getError() {
+            return error;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public Object getDetails() {
+            return details;
+        }
     }
 
     /**
-     * 사용자가 이미 존재할 때 발생하는 예외 처리
+     * 문서 처리 관련 예외 처리
      */
-    @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<ErrorResponse> handleUserAlreadyExistsException(
-            UserAlreadyExistsException ex, WebRequest request) {
-        log.error("이미 존재하는 사용자: {}", ex.getMessage());
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.CONFLICT.value())
-                .code("USER_ALREADY_EXISTS")
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    @ExceptionHandler(IOException.class)
+    public ResponseEntity<ApiError> handleIOException(IOException ex) {
+        log.error("파일 처리 중 오류 발생: {}", ex.getMessage(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "파일 처리 중 오류가 발생했습니다", ex.getMessage()));
     }
-    
+
     /**
-     * 사용자를 찾을 수 없을 때 발생하는 예외 처리
+     * 문서 생성 관련 예외 처리
      */
-    @ExceptionHandler(UsernameNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleUsernameNotFoundException(
-            UsernameNotFoundException ex, WebRequest request) {
-        log.error("사용자를 찾을 수 없음: {}", ex.getMessage());
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.NOT_FOUND.value())
-                .code("USER_NOT_FOUND")
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    @ExceptionHandler({com.itextpdf.text.DocumentException.class})
+    public ResponseEntity<ApiError> handleDocumentException(Exception ex) {
+        log.error("문서 생성 중 오류 발생: {}", ex.getMessage(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "문서 생성 중 오류가 발생했습니다", ex.getMessage()));
     }
-    
+
     /**
-     * 인증 실패(비밀번호 불일치 등) 예외 처리
+     * 요청 파라미터 타입 불일치 예외 처리
      */
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredentialsException(
-            BadCredentialsException ex, WebRequest request) {
-        log.error("인증 실패: {}", ex.getMessage());
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex) {
+        log.warn("파라미터 타입 불일치: {}", ex.getMessage());
         
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .code("INVALID_CREDENTIALS")
-                .message("이메일 또는 비밀번호가 일치하지 않습니다")
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
+        String paramName = ex.getName();
+        String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+        String message = String.format("파라미터 '%s'의 값이 '%s' 타입으로 변환될 수 없습니다", 
+                paramName, requiredType);
         
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.BAD_REQUEST, message, ex.getValue()));
     }
-    
+
     /**
-     * 서비스 레벨에서 발생하는 IllegalArgumentException 예외 처리
+     * 유효성 검사 실패 예외 처리
      */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
-            IllegalArgumentException ex, WebRequest request) {
-        log.error("잘못된 입력값: {}", ex.getMessage());
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiError> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        log.warn("유효성 검증 실패: {}", ex.getMessage());
         
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.BAD_REQUEST.value())
-                .code("INVALID_ARGUMENT")
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(error -> 
+            errors.put(error.getField(), error.getDefaultMessage())
+        );
         
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.BAD_REQUEST, "입력값 검증에 실패했습니다", errors));
     }
-    
+
     /**
-     * 리소스를 찾을 수 없을 때 발생하는 예외 처리
+     * 필수 요청 파라미터 누락 예외 처리
      */
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
-            ResourceNotFoundException ex, WebRequest request) {
-        log.error("리소스를 찾을 수 없음: {}", ex.getMessage());
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.NOT_FOUND.value())
-                .code("RESOURCE_NOT_FOUND")
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
+        log.warn("필수 파라미터 누락: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.BAD_REQUEST, 
+                    String.format("필수 파라미터 '%s'이(가) 누락되었습니다", ex.getParameterName())));
     }
-    
+
     /**
-     * CSV 파일 처리 중 발생하는 예외 처리
+     * 파일 크기 초과 예외 처리
      */
-    @ExceptionHandler(CsvProcessingException.class)
-    public ResponseEntity<ErrorResponse> handleCsvProcessingException(
-            CsvProcessingException ex, WebRequest request) {
-        log.error("CSV 파일 처리 오류: {}", ex.getMessage());
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.BAD_REQUEST.value())
-                .code("CSV_PROCESSING_ERROR")
-                .message(ex.getMessage())
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+        log.warn("파일 크기 초과: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.BAD_REQUEST, "업로드된 파일이 최대 허용 크기를 초과했습니다"));
     }
-    
+
     /**
-     * 기타 모든 예외 처리
+     * JWT 관련 예외 처리
+     */
+    @ExceptionHandler({
+        ExpiredJwtException.class,
+        UnsupportedJwtException.class,
+        MalformedJwtException.class,
+        SignatureException.class,
+        IllegalArgumentException.class
+    })
+    public ResponseEntity<ApiError> handleJwtException(Exception ex) {
+        log.warn("JWT 처리 오류: {}", ex.getMessage());
+        
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        String message = "인증 토큰 오류";
+        
+        if (ex instanceof ExpiredJwtException) {
+            message = "인증 토큰이 만료되었습니다";
+        } else if (ex instanceof UnsupportedJwtException) {
+            message = "지원하지 않는 인증 토큰입니다";
+        } else if (ex instanceof MalformedJwtException || ex instanceof SignatureException) {
+            message = "잘못된 형식의 인증 토큰입니다";
+        }
+        
+        return ResponseEntity
+                .status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(status, message));
+    }
+
+    /**
+     * 인증 관련 예외 처리
+     */
+    @ExceptionHandler({
+        InsufficientAuthenticationException.class,
+        BadCredentialsException.class,
+        AccessDeniedException.class
+    })
+    public ResponseEntity<ApiError> handleAuthenticationException(Exception ex) {
+        log.warn("인증/인가 오류: {}", ex.getMessage());
+        
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        String message = "인증에 실패했습니다";
+        
+        if (ex instanceof AccessDeniedException) {
+            status = HttpStatus.FORBIDDEN;
+            message = "해당 리소스에 접근할 권한이 없습니다";
+        } else if (ex instanceof BadCredentialsException) {
+            message = "아이디 또는 비밀번호가 일치하지 않습니다";
+        }
+        
+        return ResponseEntity
+                .status(status)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(status, message));
+    }
+
+    /**
+     * 일반 예외 처리
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGlobalException(
-            Exception ex, WebRequest request) {
-        log.error("서버 오류 발생: {}", ex.getMessage(), ex);
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .code("INTERNAL_SERVER_ERROR")
-                .message("서버 내부 오류가 발생했습니다")
-                .timestamp(LocalDateTime.now())
-                .path(getRequestPath(request))
-                .build();
-        
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-    }
-    
-    /**
-     * 요청 경로 추출
-     */
-    private String getRequestPath(WebRequest request) {
-        if (request instanceof ServletWebRequest) {
-            return ((ServletWebRequest) request).getRequest().getRequestURI();
-        }
-        return "";
+    public ResponseEntity<ApiError> handleGenericException(Exception ex) {
+        log.error("예상치 못한 오류 발생: {}", ex.getMessage(), ex);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다"));
     }
 } 

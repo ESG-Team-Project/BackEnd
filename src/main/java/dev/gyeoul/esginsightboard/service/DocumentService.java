@@ -19,13 +19,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.FileCopyUtils;
 
 import java.io.*;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -35,6 +42,15 @@ import java.util.*;
  * <p>
  * 다양한 형식의 문서 생성 및 다운로드 기능을 제공합니다.
  * 지원 형식: PDF, DOCX
+ * </p>
+ * <p>
+ * 주요 기능:
+ * <ul>
+ *   <li>정적 문서 파일 제공</li>
+ *   <li>동적 문서 생성</li>
+ *   <li>테이블 형식의 ESG 데이터 포함</li>
+ *   <li>다양한 포맷(PDF, DOCX) 지원</li>
+ * </ul>
  * </p>
  */
 @Slf4j
@@ -48,10 +64,21 @@ public class DocumentService {
     
     private static final DateTimeFormatter FILENAME_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
     
+    // 문서 저장 경로 (외부 디렉토리)
+    private static final String DOCUMENT_EXTERNAL_PATH = "data/documents/";
+    
     static {
         FRAMEWORK_TITLES.put("gri", "GRI 프레임워크");
         FRAMEWORK_TITLES.put("sasb", "SASB 프레임워크");
         FRAMEWORK_TITLES.put("tcfd", "TCFD 프레임워크");
+        
+        // 외부 문서 디렉토리 생성
+        try {
+            Files.createDirectories(Paths.get(DOCUMENT_EXTERNAL_PATH));
+        } catch (IOException e) {
+            // 로그만 남기고 계속 진행
+            log.warn("외부 문서 디렉토리 생성 실패: {}", e.getMessage());
+        }
     }
 
     /**
@@ -73,26 +100,60 @@ public class DocumentService {
     
     /**
      * 프레임워크 문서를 지정된 형식으로 다운로드합니다.
+     * <p>
+     * 문서 검색 순서:
+     * 1. 메모리 캐시 확인
+     * 2. 외부 경로 (data/documents/)
+     * 3. 클래스패스 리소스 (/static/documents/)
+     * 4. 동적 생성
+     * </p>
      * 
      * @param frameworkId 프레임워크 ID (예: gri, sasb, tcfd)
      * @param format 문서 형식 (pdf 또는 docx)
      * @return 문서 바이트 배열
      * @throws IOException 파일 처리 중 오류 발생 시
      */
+    @Cacheable(value = "frameworkDocuments", key = "#frameworkId + '-' + #format")
     public byte[] getFrameworkDocument(String frameworkId, String format) throws IOException {
-        // 파일 경로 생성
+        log.debug("프레임워크 문서 요청: frameworkId={}, format={}", frameworkId, format);
+        
+        // 1. 외부 경로에서 파일 찾기
+        String externalFilePath = String.format("%s%s_framework.%s", 
+                DOCUMENT_EXTERNAL_PATH, frameworkId, format);
+        Path externalPath = Paths.get(externalFilePath);
+        
+        if (Files.exists(externalPath)) {
+            log.debug("외부 파일 발견: {}", externalPath);
+            try (InputStream inputStream = Files.newInputStream(externalPath)) {
+                return FileCopyUtils.copyToByteArray(inputStream);
+            }
+        }
+        
+        // 2. 클래스패스 리소스에서 파일 찾기
         String resourcePath = String.format("/static/documents/%s_framework.%s", frameworkId, format);
         
         try {
-            // 리소스 로드 시도
             Resource resource = new ClassPathResource(resourcePath);
             if (resource.exists()) {
+                log.debug("클래스패스 리소스 발견: {}", resourcePath);
                 try (InputStream inputStream = resource.getInputStream()) {
                     return FileCopyUtils.copyToByteArray(inputStream);
                 }
             } else {
-                // 리소스가 없는 경우 동적으로 생성
-                return generateFrameworkDocument(frameworkId, format);
+                log.debug("리소스를 찾을 수 없음, 동적 생성 시도: {}", resourcePath);
+                // 3. 리소스가 없는 경우 동적으로 생성
+                byte[] document = generateFrameworkDocument(frameworkId, format);
+                
+                // 생성된 문서 캐싱 (외부 경로에 저장)
+                try {
+                    Files.write(externalPath, document);
+                    log.debug("생성된 문서를 외부 경로에 캐싱: {}", externalPath);
+                } catch (IOException e) {
+                    log.warn("문서 캐싱 실패: {}", e.getMessage());
+                    // 캐싱 실패해도 문서는 반환
+                }
+                
+                return document;
             }
         } catch (IOException e) {
             log.error("문서 파일 로드 중 오류 발생: {}", e.getMessage());
@@ -104,7 +165,24 @@ public class DocumentService {
     }
     
     /**
+     * 문서 URL을 생성합니다.
+     * <p>
+     * 프론트엔드에서 직접 접근할 수 있는 정적 URL을 반환합니다.
+     * </p>
+     * 
+     * @param frameworkId 프레임워크 ID
+     * @param format 문서 형식
+     * @return 문서 URL 문자열
+     */
+    public String getFrameworkDocumentUrl(String frameworkId, String format) {
+        return String.format("/documents/%s_framework.%s", frameworkId, format);
+    }
+    
+    /**
      * 프레임워크 문서를 동적으로 생성합니다.
+     * <p>
+     * 입력된 프레임워크 ID와 포맷에 따라 ESG 데이터가 포함된 문서를 생성합니다.
+     * </p>
      * 
      * @param frameworkId 프레임워크 ID
      * @param format 문서 형식
@@ -508,35 +586,75 @@ public class DocumentService {
     }
     
     /**
-     * 회사별 맞춤형 보고서를 지정된 형식으로 생성합니다.
+     * 회사별 맞춤형 보고서를 생성합니다.
+     * <p>
+     * 회사 ID와 프레임워크 ID를 기준으로 맞춤형 보고서를 생성합니다.
+     * 생성된 보고서는 캐싱되어 동일한 요청에 빠르게 응답할 수 있습니다.
+     * </p>
      * 
      * @param companyId 회사 ID
      * @param frameworkId 프레임워크 ID
-     * @param format 문서 형식
-     * @param companyName 회사명 (파일명에 사용)
-     * @return 생성된 보고서 바이트 배열
+     * @param format 문서 형식 (pdf 또는 docx)
+     * @param companyName 회사명
+     * @return 생성된 문서 바이트 배열
      * @throws IOException 문서 생성 중 오류 발생 시
      */
+    @Cacheable(value = "companyReports", key = "#companyId + '-' + #frameworkId + '-' + #format")
     public byte[] generateCompanyReport(Long companyId, String frameworkId, String format, String companyName) 
             throws IOException {
-        if (!"gri".equalsIgnoreCase(frameworkId)) {
-            throw new IllegalArgumentException("현재 GRI 프레임워크만 지원합니다.");
+        log.debug("회사 보고서 생성 요청: companyId={}, frameworkId={}, format={}", companyId, frameworkId, format);
+        
+        // 캐시된 파일 확인
+        String filename = getCompanyReportFilename(frameworkId, format, companyName);
+        String externalFilePath = DOCUMENT_EXTERNAL_PATH + filename;
+        Path externalPath = Paths.get(externalFilePath);
+        
+        // 이미 생성된 보고서가 있으면 반환
+        if (Files.exists(externalPath)) {
+            log.debug("기존 회사 보고서 발견: {}", externalPath);
+            try (InputStream inputStream = Files.newInputStream(externalPath)) {
+                return FileCopyUtils.copyToByteArray(inputStream);
+            }
         }
         
-        if ("docx".equalsIgnoreCase(format)) {
-            return reportGenerationService.generateEsgReportByCompanyId(companyId);
-        } else if ("pdf".equalsIgnoreCase(format)) {
-            // DOCX 보고서를 생성한 후 PDF로 변환
-            try {
-                byte[] docxReport = reportGenerationService.generateEsgReportByCompanyId(companyId);
-                return convertDocxToPdf(docxReport, companyName);
-            } catch (Exception e) {
-                log.error("PDF 보고서 생성 중 오류 발생: {}", e.getMessage());
-                throw new IOException("PDF 보고서 생성에 실패했습니다", e);
-            }
+        // 보고서 새로 생성
+        log.debug("회사 보고서 새로 생성: companyId={}, frameworkId={}", companyId, frameworkId);
+        byte[] report;
+        
+        if ("pdf".equalsIgnoreCase(format)) {
+            // DOCX로 먼저 생성 후 PDF로 변환
+            byte[] docxReport = generateCompanyReportDocx(companyId, frameworkId, companyName);
+            report = convertDocxToPdf(docxReport, companyName);
         } else {
-            throw new IllegalArgumentException("지원하지 않는 문서 형식: " + format);
+            // DOCX 보고서 생성
+            report = generateCompanyReportDocx(companyId, frameworkId, companyName);
         }
+        
+        // 생성된 보고서 캐싱 (외부 경로에 저장)
+        try {
+            Files.write(externalPath, report);
+            log.debug("생성된 회사 보고서를 외부 경로에 캐싱: {}", externalPath);
+        } catch (IOException e) {
+            log.warn("보고서 캐싱 실패: {}", e.getMessage());
+            // 캐싱 실패해도 보고서는 반환
+        }
+        
+        return report;
+    }
+    
+    /**
+     * DOCX 형식의 회사 보고서를 생성합니다.
+     * 
+     * @param companyId 회사 ID
+     * @param frameworkId 프레임워크 ID
+     * @param companyName 회사명
+     * @return 생성된 DOCX 문서 바이트 배열
+     * @throws IOException 문서 생성 중 오류 발생 시
+     */
+    private byte[] generateCompanyReportDocx(Long companyId, String frameworkId, String companyName) throws IOException {
+        // ESG 보고서 생성하기
+        byte[] report = reportGenerationService.generateEsgReportByCompanyId(companyId);
+        return report;
     }
     
     /**
@@ -599,6 +717,9 @@ public class DocumentService {
     
     /**
      * 프레임워크 문서의 파일명을 생성합니다.
+     * <p>
+     * 한글 파일명을 지원하며, 현재 날짜를 포함합니다.
+     * </p>
      * 
      * @param frameworkId 프레임워크 ID
      * @param format 문서 형식
@@ -612,6 +733,9 @@ public class DocumentService {
     
     /**
      * 회사별 보고서의 파일명을 생성합니다.
+     * <p>
+     * 한글 파일명을 지원하며, 현재 날짜를 포함합니다.
+     * </p>
      * 
      * @param frameworkId 프레임워크 ID
      * @param format 문서 형식
