@@ -45,6 +45,43 @@ public class DocumentController {
     private final ReportGenerationService reportGenerationService;
 
     /**
+     * GRI 문서를 다운로드합니다. - 프론트엔드 호환용 엔드포인트
+     *
+     * @param format 문서 형식 (pdf 또는 docx)
+     * @return 요청된 형식의 GRI 문서
+     * @throws IOException 파일 처리 중 오류 발생 시
+     */
+    @Operation(summary = "GRI 문서 다운로드", 
+              description = "GRI 프레임워크 문서를 다운로드합니다.")
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "문서 다운로드 성공",
+            content = @Content(mediaType = "application/octet-stream")
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "잘못된 요청 파라미터",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "문서를 찾을 수 없음",
+            content = @Content
+        )
+    })
+    @GetMapping("/gri")
+    public ResponseEntity<byte[]> downloadGriDocument(
+            @Parameter(description = "문서 형식 (pdf 또는 docx)", required = true) 
+            @RequestParam(defaultValue = "pdf") String format) throws IOException {
+        
+        log.info("GRI 문서 다운로드 요청: 형식={}", format);
+        
+        // '/framework/gri' 엔드포인트로 리다이렉트
+        return downloadFrameworkDocument("gri", format);
+    }
+
+    /**
      * 프레임워크 문서를 다운로드합니다.
      *
      * @param frameworkId 프레임워크 ID
@@ -115,8 +152,8 @@ public class DocumentController {
             headers.setContentLength(document.length);
             // 캐싱 설정 추가 (5분)
             headers.setCacheControl("max-age=300");
-            // ETag 설정 (리소스 변경 감지용)
-            headers.setETag(String.valueOf(filename.hashCode()));
+            // ETag 설정 (리소스 변경 감지용) - 따옴표로 감싸진 형태로 수정
+            headers.setETag("\"" + String.valueOf(filename.hashCode()) + "\"");
             // 다운로드 진행률 추적용 헤더
             headers.set("X-Download-Options", "noopen");
             headers.set("X-Download-Progress", "0");
@@ -198,7 +235,7 @@ public class DocumentController {
             
             log.debug("회사 ID: {}, 회사명: {}", companyId, companyName);
             
-            // 보고서 생성
+            // 보고서 생성 서비스 호출
             byte[] report = documentService.generateCompanyReport(companyId, frameworkId, format, companyName);
             
             if (report == null || report.length == 0) {
@@ -209,7 +246,8 @@ public class DocumentController {
             }
             
             // 파일명 생성
-            String filename = documentService.getCompanyReportFilename(frameworkId, format, companyName);
+            String filename = companyName.replaceAll("\\s+", "_") + "_" + frameworkId.toUpperCase() + "_Report_" 
+                    + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "." + format;
             String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8.toString())
                     .replaceAll("\\+", "%20");
             
@@ -227,10 +265,9 @@ public class DocumentController {
             headers.set("Pragma", "no-cache");
             headers.set("Expires", "0");
             // 생성 타임스탬프 추가
-            headers.set("X-Report-Generated", LocalDate.now().format(DateTimeFormatter.ISO_DATE));
-            // 다운로드 진행률 추적용 헤더
-            headers.set("X-Download-Options", "noopen");
-            headers.set("X-Download-Progress", "0");
+            headers.set("X-Report-Generated", LocalDate.now().toString());
+            // ETag 설정 - 따옴표로 감싸진 형태로 수정
+            headers.setETag("\"" + String.valueOf(filename.hashCode()) + "\"");
             
             return ResponseEntity.ok()
                     .headers(headers)
@@ -244,57 +281,60 @@ public class DocumentController {
     }
     
     /**
-     * 현재 로그인한 사용자의 회사에 대한 ESG 보고서를 다운로드합니다.
-     * 기존 ReportController의 기능을 통합한 새로운 엔드포인트입니다.
-     * 
-     * @return 생성된 DOCX 보고서 파일
-     * @throws IOException 파일 생성 중 오류 발생 시
+     * ESG 종합 보고서를 다운로드합니다.
+     *
+     * @param format 문서 형식 (pdf 또는 docx)
+     * @return 종합 ESG 보고서
+     * @throws IOException 파일 처리 중 오류 발생 시
      */
-    @Operation(
-        summary = "내 회사 ESG 보고서 다운로드",
-        description = "로그인한 사용자의 회사 데이터를 기반으로 GRI 프레임워크에 맞춘 ESG 보고서를 DOCX 형식으로 생성하여 다운로드합니다."
-    )
+    @Operation(summary = "ESG 종합 보고서 다운로드", 
+              description = "현재 인증된 사용자의 회사에 대한 종합 ESG 보고서를 생성하여 다운로드합니다.")
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "ESG 보고서 다운로드 성공",
-            content = @Content(mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "인증 실패 또는 토큰 없음",
-            content = @Content
+            description = "보고서 다운로드 성공",
+            content = @Content(mediaType = "application/octet-stream")
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "보고서 생성 중 오류 발생 (ESG 데이터 없음)",
+            description = "잘못된 요청 파라미터",
             content = @Content
         ),
         @ApiResponse(
-            responseCode = "500",
-            description = "서버 내부 오류",
+            responseCode = "401",
+            description = "인증 실패",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "회사 정보 또는 문서를 찾을 수 없음",
             content = @Content
         )
     })
-    @GetMapping("/report")
-    public ResponseEntity<byte[]> downloadCompanyReport() throws IOException {
+    @GetMapping("/company/report")
+    public ResponseEntity<byte[]> downloadEsgReport(
+            @Parameter(description = "문서 형식 (pdf 또는 docx)", required = true) 
+            @RequestParam(defaultValue = "docx") String format) throws IOException {
+        
+        log.info("ESG 종합 보고서 다운로드 요청: 형식={}", format);
+        
+        // 지원하는 형식 확인
+        if (!isFormatSupported(format)) {
+            log.warn("지원하지 않는 형식 요청: {}", format);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(("{\"message\":\"지원하지 않는 형식: " + format + "\",\"code\":\"UNSUPPORTED_FORMAT\"}").getBytes());
+        }
+        
         try {
             // 현재 인증된 사용자에서 회사 정보를 가져옴
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             UserDto currentUser = (UserDto) authentication.getPrincipal();
             
-            // 인증되지 않은 경우 401 반환
-            if (currentUser == null) {
-                log.warn("인증되지 않은 사용자의 보고서 다운로드 시도");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(("{\"message\":\"인증 정보가 없습니다\",\"code\":\"AUTH_REQUIRED\"}").getBytes());
-            }
-            
-            // 사용자의 회사 ID로 보고서 생성
             Long companyId = currentUser.getCompanyId();
+            
             if (companyId == null) {
-                log.warn("회사 정보가 없는 사용자의 보고서 다운로드 시도: 사용자 ID={}", currentUser.getId());
+                log.warn("사용자 회사 정보 없음: 사용자 ID={}", currentUser.getId());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(("{\"message\":\"회사 정보가 없습니다\",\"code\":\"COMPANY_INFO_MISSING\"}").getBytes());

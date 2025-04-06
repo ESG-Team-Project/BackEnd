@@ -127,47 +127,64 @@ public class GriDataItemService {
      */
     private void createAuditLog(GriDataItemDto dto, String action) {
         try {
+            // 모든 문자열 필드 길이 제한
+            String standardCode = StringUtils.truncate(
+                dto.getStandardCode() != null ? dto.getStandardCode() : "", 20);
+            String disclosureCode = StringUtils.truncate(
+                dto.getDisclosureCode() != null ? dto.getDisclosureCode() : "", 20);
+            String disclosureValue = StringUtils.truncate(
+                dto.getDisclosureValue() != null ? dto.getDisclosureValue() : "", 30);
+            String numericValue = dto.getNumericValue() != null ? 
+                StringUtils.truncate(dto.getNumericValue().toString(), 15) : "";
+            String unit = dto.getUnit() != null ? 
+                StringUtils.truncate(dto.getUnit(), 10) : "";
+            
             // 1. 현재 인증된 사용자 정보 가져오기
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            String username = auth != null ? auth.getName() : "system";
+            String username = auth != null ? StringUtils.truncate(auth.getName(), 50) : "system";
             
             // 2. 클라이언트 IP 주소 가져오기
             String ipAddress = null;
             RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
             if (requestAttributes instanceof ServletRequestAttributes) {
                 HttpServletRequest request = ((ServletRequestAttributes)requestAttributes).getRequest();
-                ipAddress = request.getRemoteAddr();
+                ipAddress = StringUtils.truncate(request.getRemoteAddr(), 50);
             }
             
-            // 3. 변경 내용 상세 정보 구성
+            // 3. 변경 내용 상세 정보 구성 (최종 길이 150자로 제한)
             String details;
             if ("CREATE".equals(action) || "UPDATE".equals(action)) {
                 details = String.format("GRI-%s-%s: '%s' (%s %s)", 
-                    dto.getStandardCode(), 
-                    dto.getDisclosureCode(),
-                    StringUtils.hasText(dto.getDisclosureValue()) ? 
-                        StringUtils.truncate(dto.getDisclosureValue(), 100) : "",
-                    dto.getNumericValue() != null ? dto.getNumericValue() : "",
-                    dto.getUnit() != null ? dto.getUnit() : "");
+                    standardCode, disclosureCode, disclosureValue, numericValue, unit);
             } else {
-                details = String.format("GRI-%s-%s 삭제됨", 
-                    dto.getStandardCode(), 
-                    dto.getDisclosureCode());
+                details = String.format("GRI-%s-%s 삭제됨", standardCode, disclosureCode);
             }
+            
+            // 최종 details 문자열 길이 제한 (150자로 제한)
+            details = StringUtils.truncate(details, 150);
             
             // 4. 감사 로그 생성
             AuditLogDto auditLog = AuditLogDto.builder()
-                .entityType("GriDataItem")
-                .entityId(dto.getId() != null ? dto.getId().toString() : "0")
-                .action(action)
+                .entityType(StringUtils.truncate("GriDataItem", 50))
+                .entityId(dto.getId() != null ? StringUtils.truncate(dto.getId().toString(), 50) : "0")
+                .action(StringUtils.truncate(action, 20))
                 .details(details)
                 .username(username)
                 .ipAddress(ipAddress)
                 .build();
             
-            auditLogService.saveAuditLog(auditLog);
+            // 별도의 트랜잭션으로 처리 (메인 트랜잭션과 분리)
+            new Thread(() -> {
+                try {
+                    auditLogService.saveAuditLog(auditLog);
+                } catch (Exception e) {
+                    log.error("감사 로그 별도 스레드 저장 중 오류: {}", e.getMessage());
+                }
+            }).start();
         } catch (Exception e) {
             log.error("감사 로그 생성 중 오류 발생: {}", e.getMessage());
+            // 감사 로그 생성 실패해도 메인 트랜잭션은 롤백되지 않도록 처리
+            // 예외를 재발생시키지 않음
         }
     }
 
@@ -242,6 +259,9 @@ public class GriDataItemService {
     public GriDataItemDto saveGriDataItem(GriDataItemDto dto) {
         log.debug("GRI 데이터 항목을 저장합니다: {}-{}", dto.getStandardCode(), dto.getDisclosureCode());
         
+        // 필수 필드 기본값 설정
+        ensureRequiredFields(dto);
+        
         // 시계열 데이터 처리 
         processTimeSeriesData(dto);
         
@@ -256,11 +276,71 @@ public class GriDataItemService {
         // 저장
         GriDataItem savedEntity = griDataItemRepository.save(entity);
         
-        // 감사 로그 생성
-        createAuditLog(dto, dto.getId() == null ? "CREATE" : "UPDATE");
+        // DTO로 변환
+        GriDataItemDto savedDto = processTimeSeriesDataForRead(griDataItemMapper.toDto(savedEntity));
         
-        // DTO로 변환하여 반환
-        return processTimeSeriesDataForRead(griDataItemMapper.toDto(savedEntity));
+        // 감사 로그 생성 (별도 트랜잭션에서 처리, 실패해도 메인 트랜잭션에 영향 없음)
+        try {
+            createAuditLog(dto, dto.getId() == null ? "CREATE" : "UPDATE");
+        } catch (Exception e) {
+            log.error("감사 로그 생성 중 오류 발생 (무시됨): {}", e.getMessage());
+            // 로그 생성 실패해도 메인 작업은 계속 진행
+        }
+        
+        return savedDto;
+    }
+
+    /**
+     * DTO의 필수 필드가 모두 설정되었는지 확인하고, 누락된 경우 기본값 설정
+     * 
+     * @param dto 검사할 GriDataItemDto
+     */
+    private void ensureRequiredFields(GriDataItemDto dto) {
+        // 카테고리 필드 기본값 설정
+        if (dto.getCategory() == null || dto.getCategory().trim().isEmpty()) {
+            log.debug("카테고리 필드가 누락되어 기본값을 설정합니다. standardCode={}, disclosureCode={}", 
+                     dto.getStandardCode(), dto.getDisclosureCode());
+            
+            // 표준 코드를 기반으로 카테고리 결정 시도
+            String standardCode = dto.getStandardCode();
+            if (standardCode != null && !standardCode.trim().isEmpty()) {
+                try {
+                    int codeNumber = Integer.parseInt(standardCode.replaceAll("[^0-9]", ""));
+                    if (codeNumber >= 200 && codeNumber < 300) {
+                        dto.setCategory(GriDataItemDto.CATEGORY_GOVERNANCE);
+                    } else if (codeNumber >= 300 && codeNumber < 400) {
+                        dto.setCategory(GriDataItemDto.CATEGORY_ENVIRONMENTAL);
+                    } else if (codeNumber >= 400 && codeNumber < 500) {
+                        dto.setCategory(GriDataItemDto.CATEGORY_SOCIAL);
+                    } else {
+                        dto.setCategory("기타");
+                    }
+                } catch (NumberFormatException e) {
+                    // 코드 파싱 실패 시 기본값 설정
+                    dto.setCategory("기타");
+                }
+            } else {
+                dto.setCategory("기타");
+            }
+        }
+        
+        // disclosure_title 필드 기본값 설정
+        if (dto.getDisclosureTitle() == null || dto.getDisclosureTitle().trim().isEmpty()) {
+            log.debug("disclosure_title 필드가 누락되어 기본값을 설정합니다.");
+            
+            // disclosureCode 기반으로 타이틀 생성 시도
+            String disclosureCode = dto.getDisclosureCode();
+            if (disclosureCode != null && !disclosureCode.trim().isEmpty()) {
+                dto.setDisclosureTitle("GRI " + disclosureCode + " 항목");
+            } else {
+                dto.setDisclosureTitle("미지정 GRI 항목");
+            }
+        }
+        
+        // 기타 필수 필드 기본값 설정
+        if (dto.getDataType() == null || dto.getDataType().trim().isEmpty()) {
+            dto.setDataType(GriDataItem.DataType.TEXT.name());
+        }
     }
     
     /**
@@ -537,6 +617,9 @@ public class GriDataItemService {
                 newData.setStandardCode(parts[0]);
                 newData.setDisclosureCode(parts[1]);
                 
+                // 필수 필드 설정
+                ensureRequiredFields(newData);
+                
                 // 기존 ID 설정 (있는 경우)
                 if (existingData.containsKey(key)) {
                     newData.setId(existingData.get(key).getId());
@@ -583,6 +666,8 @@ public class GriDataItemService {
             if (item.getCompanyId() == null) {
                 item.setCompanyId(companyId);
             }
+            // 필수 필드 설정
+            ensureRequiredFields(item);
         });
         
         // 데이터 유효성 검사

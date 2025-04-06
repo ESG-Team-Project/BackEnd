@@ -47,13 +47,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private JwtConfig jwtConfig;
 
     private static final List<String> EXCLUDED_PATHS = Arrays.asList(
-            "/api/auth",
-            "/swagger-ui",
-            "/v3/api-docs",
+            "/api/auth/**",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
             "/favicon.ico",
-            "/static",
-            "/h2-console"
+            "/static/**",
+            "/h2-console/**",
+            "/error"
     );
+
+    /**
+     * 요청 경로가 제외 목록에 포함되는지 확인
+     *
+     * @param requestUri 요청 URI
+     * @return 제외 목록에 포함되면 true, 아니면 false
+     */
+    private boolean isExcludedPath(String requestUri) {
+        return EXCLUDED_PATHS.stream().anyMatch(pattern -> {
+            // 와일드카드가 있는 경우
+            if (pattern.endsWith("/**")) {
+                String prefix = pattern.substring(0, pattern.length() - 2);
+                return requestUri.startsWith(prefix);
+            }
+            // 정확한 경로 매칭
+            return requestUri.equals(pattern);
+        });
+    }
 
     /**
      * 필터 처리를 수행합니다.
@@ -68,7 +87,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         // 인증이 필요없는 경로는 처리하지 않음
-        log.debug("JwtAuthenticationFilter.doFilterInternal - request: {}", request.getRequestURI());
+        String requestUri = request.getRequestURI();
+        log.debug("JwtAuthenticationFilter.doFilterInternal - request: {}", requestUri);
+        
+        // 제외 경로 확인
+        if (isExcludedPath(requestUri)) {
+            log.debug("인증 제외 경로: {}", requestUri);
+            filterChain.doFilter(request, response);
+            return;
+        }
+        
         final String requestTokenHeader = request.getHeader(jwtConfig.getHeader());
 
         String email = null;
@@ -97,6 +125,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         userDto, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+                
+                // request attribute에 사용자 정보 추가
+                request.setAttribute("user", userDto);
+                
                 log.debug("인증 성공: {}", email);
             }
         }
@@ -119,6 +151,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 "test@example.com", null, Collections.singletonList(authority));
         authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authToken);
+        
+        // 테스트 사용자용 UserDto 생성 및 요청에 추가
+        UserDto testUser = UserDto.builder()
+                .id(999L)
+                .email("test@example.com")
+                .name("테스트 사용자")
+                .companyName("테스트 회사")
+                .build();
+        request.setAttribute("user", testUser);
+        
         log.info("테스트 사용자 인증 성공");
     }
 } 
