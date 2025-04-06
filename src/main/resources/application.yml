@@ -10,9 +10,12 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+    out-of-order: true
+    clean-disabled: false
+    clean-on-validation-error: true
   jpa:
     hibernate:
-      ddl-auto: validate # 기본값은 validate로 변경
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -56,3 +59,31 @@ jwt:
   prefix: Bearer
   secret: ${JWT_SECRET:}  # 환경 변수에서 시크릿 키를 가져오거나, 비어있으면 자동 생성
   expiration: 86400000  # 24시간 (밀리초)
+
+# 프로필 설정
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    clean-disabled: false
+    clean-on-validation-error: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  flyway:
+    clean-disabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
