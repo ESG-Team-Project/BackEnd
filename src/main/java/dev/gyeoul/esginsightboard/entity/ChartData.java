@@ -45,6 +45,10 @@ public class ChartData {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String data; // 사용자 입력 데이터 (JSON 저장)
 
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String style; // 차트 스타일 정보 (JSON 저장)
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -53,7 +57,7 @@ public class ChartData {
 
     @Builder
     public ChartData(String title, String description, String category, String indicator,
-                     String chartType, Integer chartGrid, String data, User user) {
+                     String chartType, Integer chartGrid, String data, String style, User user) {
         this.title = title;
         this.description = description;
         this.category = category;
@@ -61,13 +65,14 @@ public class ChartData {
         this.chartType = chartType;
         this.chartGrid = chartGrid;
         this.data = data;
+        this.style = style;
         this.user = user;
     }
 
     // ✅ 값 변경을 위한 update 메서드 추가
     public void update(String title, String description, String category,
                        String indicator, String chartType, Integer chartGrid,
-                       String data) {
+                       String data, String style) {
         this.title = title;
         this.description = description;
         this.category = category;
@@ -75,6 +80,7 @@ public class ChartData {
         this.chartType = chartType;
         this.chartGrid = chartGrid;
         this.data = data;
+        this.style = style;
     }
 
     @PrePersist

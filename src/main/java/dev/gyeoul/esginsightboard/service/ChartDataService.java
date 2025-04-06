@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 //import org.apache.catalina.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -112,6 +113,21 @@ public class ChartDataService {
         ChartData chartData = chartDataRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("ChartData not found with ID: " + id));
 
+        // ✅ JSON 문자열로 변환
+        String jsonData;
+        String jsonStyle;
+        
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            // 데이터 직렬화
+            jsonData = objectMapper.writeValueAsString(dto.getData());
+            // 스타일 직렬화
+            jsonStyle = objectMapper.writeValueAsString(dto.getStyle());
+        } catch (Exception e) {
+            jsonData = "[]"; // 기본 빈 배열
+            jsonStyle = "{}"; // 기본 빈 객체
+        }
+
         // ✅ 엔티티 내부에서 값 변경 (setter 없이)
         chartData.update(
                 dto.getTitle(),
@@ -120,7 +136,8 @@ public class ChartDataService {
                 dto.getIndicator(),
                 dto.getChartType(),
                 dto.getChartGrid(),
-                dto.getDataSets().toString()
+                jsonData,
+                jsonStyle
         );
 
         // ✅ 트랜잭션이 끝나면 JPA가 자동으로 변경 사항을 반영 (save() 필요 없음)
