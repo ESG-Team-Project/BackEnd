@@ -159,6 +159,16 @@ public class GriDataItem {
     private String disclosureTitle;
     
     /**
+     * 공시 항목에 대한 값
+     * <p>
+     * 공시 항목에 대한 응답 또는 값을 저장합니다.
+     * 텍스트 형태, 수치 값, 또는 시계열 데이터의 JSON 문자열 등이 저장될 수 있습니다.
+     * </p>
+     */
+    @Column(name = "disclosure_value", columnDefinition = "TEXT")
+    private String disclosureValue;
+    
+    /**
      * 공시 항목에 대한 텍스트 형태의 값
      * <p>
      * 숫자로 표현하기 어려운 정보를 기술하는 필드입니다.

@@ -2,10 +2,12 @@ package dev.gyeoul.esginsightboard.dto;
 
 import dev.gyeoul.esginsightboard.entity.GriDataItem;
 import dev.gyeoul.esginsightboard.entity.TimeSeriesDataPoint;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,6 +40,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class GriDataItemDto {
 
     /**
@@ -412,7 +415,12 @@ public class GriDataItemDto {
                     .orElse(null);
                 
                 if (latest != null) {
-                    this.numericValue = latest.getValue();
+                    try {
+                        this.numericValue = Double.parseDouble(latest.getValue());
+                    } catch (NumberFormatException e) {
+                        log.warn("시계열 데이터 값을 Double로 변환할 수 없습니다: {}", latest.getValue());
+                        this.numericValue = null;
+                    }
                     this.unit = latest.getUnit();
                 }
             } catch (Exception e) {
