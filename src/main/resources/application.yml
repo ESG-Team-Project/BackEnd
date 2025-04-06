@@ -8,10 +8,19 @@ spring:
   # Flyway 설정
   flyway:
     enabled: false
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/ESG
+    username: postgres
+    password: postgres
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   jackson:
     serialization:
       fail-on-empty-beans: false
