@@ -193,23 +193,46 @@ public class UserService {
 
     // 사용자 데이터 업데이트
     @Transactional
-    public void updateUser(Long userId, UserUpdateRequest request) {
+    public UserDto updateUser(Long userId, UserUpdateRequest request) {
         // 1. 사용자 ID로 기존 사용자 조회 (없으면 예외 발생)
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
-        // 2. 필드 수정
+        // 2. 이메일 변경 시 중복 검사 수행 (현재 사용자 제외)
+        if (!user.getEmail().equals(request.getEmail())) {
+            if (userRepository.existsByEmailAndIdNot(request.getEmail(), userId)) {
+                throw new UserAlreadyExistsException("이미 사용 중인 이메일입니다: " + request.getEmail());
+            }
+        }
+
+        // 3. 비밀번호 변경 요청이 있는 경우
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            // 3.1 현재 비밀번호 검증
+            if (request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()) {
+                throw new BadCredentialsException("현재 비밀번호를 입력해주세요");
+            }
+            
+            // 3.2 현재 비밀번호 일치 확인
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new BadCredentialsException("현재 비밀번호가 일치하지 않습니다");
+            }
+            
+            // 3.3 새 비밀번호 설정
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        }
+
+        // 4. 나머지 필드 업데이트
         user.setName(request.getName());
         user.setEmail(request.getEmail());
-        user.setPhoneNumber(request.getPhoneNumber());
-
-        // 3. 비밀번호가 전달된 경우에만 수정 (공란이면 무시)
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            String encoderPassword =  passwordEncoder.encode(request.getPassword());
-            user.setPassword(encoderPassword);
+        
+        // 전화번호는 null 허용
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
         }
-//        // 저장 (JPA 엔티티 변경 감지 dirty checking)
-//        return UserDto.toEntity(user);
+
+        // 5. 저장 및 업데이트된 사용자 정보 반환
+        User updatedUser = userRepository.save(user);
+        return UserDto.fromEntity(updatedUser);
     }
 
     // 회사 데이터 업데이트

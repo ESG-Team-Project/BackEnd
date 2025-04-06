@@ -48,7 +48,7 @@ public class GriCodeInitializer {
             // 데이터 저장
             int savedCount = 0;
             for (GriDataItemDto code : allCodes) {
-                griDataItemService.saveGriDataItem(code);
+                griDataItemService.saveGriDataItem(code, 1L); // 기본 회사 ID 1로 설정
                 savedCount++;
                 
                 if (savedCount % 50 == 0) {

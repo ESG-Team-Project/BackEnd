@@ -195,7 +195,7 @@ public class GriDataInitializer {
 
             // 데이터 저장
             allData.forEach(data -> {
-                griDataItemService.saveGriDataItem(data);
+                griDataItemService.saveGriDataItem(data, 1L);
                 System.out.println(data.getDisclosureCode() + " (" + data.getDisclosureTitle() + ") 데이터가 저장되었습니다.");
             });
 

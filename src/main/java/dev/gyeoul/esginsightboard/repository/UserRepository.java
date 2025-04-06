@@ -24,4 +24,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return 존재 여부
      */
     boolean existsByEmail(String email);
+    
+    // 특정 ID가 아닌 사용자 중에서 이메일로 사용자 존재 여부 확인 (사용자 업데이트 시 이메일 중복 체크용)
+    boolean existsByEmailAndIdNot(String email, Long id);
 } 

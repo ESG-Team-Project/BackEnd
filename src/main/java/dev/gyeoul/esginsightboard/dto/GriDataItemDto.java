@@ -1,6 +1,7 @@
 package dev.gyeoul.esginsightboard.dto;
 
 import dev.gyeoul.esginsightboard.entity.GriDataItem;
+import dev.gyeoul.esginsightboard.entity.TimeSeriesDataPoint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,6 +9,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * GRI(Global Reporting Initiative) 데이터 항목에 대한 DTO(Data Transfer Object)
@@ -210,6 +213,22 @@ public class GriDataItemDto {
     private LocalDateTime updatedAt;
 
     /**
+     * 데이터 유형
+     * <p>
+     * 이 데이터 항목의 형식을 나타냅니다. TIMESERIES, TEXT, NUMERIC 중 하나입니다.
+     * </p>
+     */
+    private String dataType;
+    
+    /**
+     * 시계열 데이터 포인트 목록
+     * <p>
+     * 데이터 유형이 TIMESERIES인 경우, 이 필드에 시계열 데이터가 포함됩니다.
+     * </p>
+     */
+    private List<TimeSeriesDataPointDto> timeSeriesData;
+
+    /**
      * GriDataItem 엔티티를 GriDataItemDto로 변환
      * <p>
      * 엔티티의 모든 필드를 DTO로 복사하고, 회사 정보가 있으면 회사 관련 필드도 설정합니다.
@@ -242,7 +261,22 @@ public class GriDataItemDto {
                 .category(entity.getCategory())
                 .description(entity.getDescription())
                 .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt());
+                .updatedAt(entity.getUpdatedAt())
+                .dataType(entity.getDataType() != null ? entity.getDataType().name() : null);
+
+        if (entity.getCompany() != null) {
+            builder.companyId(entity.getCompany().getId())
+                   .companyName(entity.getCompany().getName());
+        }
+        
+        // 시계열 데이터가 있는 경우 변환
+        if (entity.getTimeSeriesDataPoints() != null && !entity.getTimeSeriesDataPoints().isEmpty()) {
+            List<TimeSeriesDataPointDto> timeSeriesDataList = new ArrayList<>();
+            for (TimeSeriesDataPoint dataPoint : entity.getTimeSeriesDataPoints()) {
+                timeSeriesDataList.add(TimeSeriesDataPointDto.fromEntity(dataPoint));
+            }
+            builder.timeSeriesData(timeSeriesDataList);
+        }
 
         return builder.build();
     }
@@ -267,7 +301,7 @@ public class GriDataItemDto {
      * @return 생성된 GriDataItem 엔티티
      */
     public GriDataItem toEntity() {
-        return GriDataItem.builder()
+        GriDataItem entity = GriDataItem.builder()
                 .id(this.id)  // null이면 새 항목, 값이 있으면 업데이트
                 .standardCode(this.standardCode)
                 .disclosureCode(this.disclosureCode)
@@ -281,7 +315,18 @@ public class GriDataItemDto {
                 .verificationProvider(this.verificationProvider)
                 .category(this.category)
                 .description(this.description)
+                .dataType(this.dataType != null ? GriDataItem.DataType.valueOf(this.dataType) : null)
                 .build();
+        
+        // 시계열 데이터가 있는 경우 추가
+        if (this.timeSeriesData != null && !this.timeSeriesData.isEmpty()) {
+            for (TimeSeriesDataPointDto dataPointDto : this.timeSeriesData) {
+                TimeSeriesDataPoint dataPoint = dataPointDto.toEntity();
+                entity.addTimeSeriesDataPoint(dataPoint);
+            }
+        }
+        
+        return entity;
     }
     
     /**

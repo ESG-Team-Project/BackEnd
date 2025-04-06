@@ -200,7 +200,7 @@ public class UserController {
      *
      * @param request 사용자가 보낸 회원정보 수정 요청 (이름, 이메일, 비밀번호, 전화번호)
      * @param req HTTP 요청 객체 (JWT 토큰 검증 결과 포함)
-     * @return 수정 성공 시 요청 내용을 그대로 반환 (HTTP 200), 인증 실패 시 401 반환
+     * @return 수정된 사용자 정보 (HTTP 200), 인증 실패 시 401 반환
      */
     @PutMapping("/update")
     @Operation(
@@ -208,7 +208,7 @@ public class UserController {
             description = "마이페이지에서 사용자 정보를 수정합니다."
     )
     @SecurityRequirement(name = "bearerAuth")
-    public ResponseEntity<UserUpdateRequest> updateUser(
+    public ResponseEntity<UserDto> updateUser(
             @RequestBody @Valid UserUpdateRequest request, HttpServletRequest req) {
         // JWT 필터를 통해 주입된 현재 사용자 정보 꺼내기
         UserDto currentUser = (UserDto) req.getAttribute("user");
@@ -219,10 +219,11 @@ public class UserController {
         }
 
         // 서비스 계층에 사용자 ID와 수정 요청을 넘겨 DB 반영 수행
-        userService.updateUser(currentUser.getId(), request);
+        // 업데이트된 사용자 정보 받기
+        UserDto updatedUser = userService.updateUser(currentUser.getId(), request);
 
-        // 성공적으로 수정된 경우, 원래 요청 객체를 그대로 반환
-        return ResponseEntity.ok(request);
+        // 성공적으로 수정된 경우, 업데이트된 사용자 정보 반환
+        return ResponseEntity.ok(updatedUser);
     }
 
     // 회사 정보 수정
