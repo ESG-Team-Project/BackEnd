@@ -291,6 +291,7 @@ public class GriDataItem {
      * </p>
      */
     @OneToMany(mappedBy = "griDataItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<TimeSeriesDataPoint> timeSeriesDataPoints = new ArrayList<>();
     
     /**
@@ -417,6 +418,9 @@ public class GriDataItem {
      * @param dataPoint 추가할 시계열 데이터 포인트
      */
     public void addTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
+        if (timeSeriesDataPoints == null) {
+            timeSeriesDataPoints = new ArrayList<>();
+        }
         timeSeriesDataPoints.add(dataPoint);
         dataPoint.setGriDataItem(this);
     }
