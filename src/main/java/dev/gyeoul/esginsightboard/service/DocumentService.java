@@ -621,25 +621,30 @@ public class DocumentService {
         log.debug("회사 보고서 새로 생성: companyId={}, frameworkId={}", companyId, frameworkId);
         byte[] report;
         
-        if ("pdf".equalsIgnoreCase(format)) {
-            // DOCX로 먼저 생성 후 PDF로 변환
-            byte[] docxReport = generateCompanyReportDocx(companyId, frameworkId, companyName);
-            report = convertDocxToPdf(docxReport, companyName);
-        } else {
-            // DOCX 보고서 생성
-            report = generateCompanyReportDocx(companyId, frameworkId, companyName);
-        }
-        
-        // 생성된 보고서 캐싱 (외부 경로에 저장)
         try {
-            Files.write(externalPath, report);
-            log.debug("생성된 회사 보고서를 외부 경로에 캐싱: {}", externalPath);
-        } catch (IOException e) {
-            log.warn("보고서 캐싱 실패: {}", e.getMessage());
-            // 캐싱 실패해도 보고서는 반환
+            if ("pdf".equalsIgnoreCase(format)) {
+                // DOCX로 먼저 생성 후 PDF로 변환
+                byte[] docxReport = generateCompanyReportDocx(companyId, frameworkId, companyName);
+                report = convertDocxToPdf(docxReport, companyName);
+            } else {
+                // DOCX 보고서 생성
+                report = generateCompanyReportDocx(companyId, frameworkId, companyName);
+            }
+            
+            // 생성된 보고서 캐싱 (외부 경로에 저장)
+            try {
+                Files.write(externalPath, report);
+                log.debug("생성된 회사 보고서를 외부 경로에 캐싱: {}", externalPath);
+            } catch (IOException e) {
+                log.warn("보고서 캐싱 실패: {}", e.getMessage());
+                // 캐싱 실패해도 보고서는 반환
+            }
+            
+            return report;
+        } catch (DocumentException e) {
+            log.error("PDF 변환 중 오류 발생: {}", e.getMessage(), e);
+            throw new IOException("PDF 변환에 실패했습니다: " + e.getMessage(), e);
         }
-        
-        return report;
     }
     
     /**
