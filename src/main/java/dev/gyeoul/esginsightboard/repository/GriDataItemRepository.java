@@ -1,13 +1,19 @@
 package dev.gyeoul.esginsightboard.repository;
 
 import dev.gyeoul.esginsightboard.entity.GriDataItem;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * GRI 데이터 항목에 대한 데이터베이스 액세스를 제공하는 Repository
@@ -16,7 +22,8 @@ import java.util.List;
  * 사용되는 표준 지표들을 의미합니다.
  */
 @Repository
-public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long> {
+public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long>, 
+        JpaSpecificationExecutor<GriDataItem> {
     
     /**
      * 지정된 범주(E, S, G)에 속하는 GRI 데이터 항목을 조회
@@ -59,23 +66,19 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long> 
     List<GriDataItem> findByVerificationStatus(String verificationStatus);
 
     /**
-     * 특정 회사에 속하는 GRI 데이터 항목을 조회
-     * 
+     * 특정 회사의 GRI 데이터 항목을 조회
+     *
      * @param companyId 회사 ID
-     * @return 회사에 속하는 데이터 항목 목록
-     * 
-     * 사용 예시: repository.findByCompanyId(1L) - 1번 회사의 모든 GRI 데이터 조회
+     * @return 해당 회사의 GRI 데이터 항목 목록
      */
     List<GriDataItem> findByCompanyId(Long companyId);
     
     /**
-     * 특정 회사에 속하고 특정 카테고리에 해당하는 GRI 데이터 항목을 조회
-     * 
+     * 특정 회사의 특정 카테고리 GRI 데이터 항목을 조회
+     *
      * @param companyId 회사 ID
      * @param category 카테고리 (E, S, G)
-     * @return 조건에 맞는 데이터 항목 목록
-     * 
-     * 사용 예시: repository.findByCompanyIdAndCategory(1L, "E") - 1번 회사의 환경 관련 데이터 조회
+     * @return 해당 회사의 해당 카테고리 GRI 데이터 항목 목록
      */
     List<GriDataItem> findByCompanyIdAndCategory(Long companyId, String category);
 
@@ -107,4 +110,71 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long> 
             LocalDate endDate, LocalDate startDate) {
         return findItemsByReportingPeriod(endDate, startDate);
     }
+    
+    /**
+     * 회사 엔티티를 포함하여 모든 GRI 데이터 항목을 조회합니다.
+     * N+1 쿼리 문제를 방지하기 위해 엔티티 그래프를 사용합니다.
+     * 
+     * @return 회사 정보가 포함된 GRI 데이터 항목 목록
+     */
+    @EntityGraph(attributePaths = {"company"})
+    List<GriDataItem> findAll();
+    
+    /**
+     * 페이지 단위로 회사 엔티티를 포함하여 GRI 데이터 항목을 조회합니다.
+     * 
+     * @param pageable 페이지 정보
+     * @return 페이지네이션 적용된 GRI 데이터 항목 목록
+     */
+    @EntityGraph(attributePaths = {"company"})
+    Page<GriDataItem> findAll(Pageable pageable);
+    
+    /**
+     * ID로 GRI 데이터 항목을 조회하면서 관련된 모든 시계열 데이터 포인트를 함께 로드합니다.
+     * 
+     * @param id GRI 데이터 항목 ID
+     * @return 시계열 데이터 포인트가 포함된 GRI 데이터 항목
+     */
+    @EntityGraph(attributePaths = {"company", "timeSeriesDataPoints"})
+    Optional<GriDataItem> findWithAllDataById(Long id);
+    
+    /**
+     * 여러 ID에 해당하는 GRI 데이터 항목을 조회하면서 회사 정보를 함께 로드합니다.
+     * 
+     * @param ids GRI 데이터 항목 ID 목록
+     * @return 회사 정보가 포함된 GRI 데이터 항목 목록
+     */
+    @Query("SELECT g FROM GriDataItem g JOIN FETCH g.company WHERE g.id IN :ids")
+    List<GriDataItem> findAllWithCompanyByIdIn(@Param("ids") List<Long> ids);
+    
+    /**
+     * 특정 회사와 카테고리에 해당하는 GRI 데이터 항목을 스트림으로 조회합니다.
+     * 대량의 데이터를 처리할 때 메모리 사용량을 최적화합니다.
+     * 
+     * @param companyId 회사 ID
+     * @return GRI 데이터 항목 스트림
+     */
+    @Query("SELECT g FROM GriDataItem g WHERE g.company.id = :companyId")
+    Stream<GriDataItem> findByCompanyIdAsStream(@Param("companyId") Long companyId);
+    
+    /**
+     * 회사 ID, 공시 코드, 보고 기간으로 GRI 데이터 항목 존재 여부를 확인합니다.
+     * 데이터 중복 방지를 위해 사용됩니다.
+     *
+     * @param companyId 회사 ID
+     * @param disclosureCode 공시 코드
+     * @param startDate 보고 기간 시작일
+     * @param endDate 보고 기간 종료일
+     * @return 존재 여부 (true/false)
+     */
+    @Query("SELECT COUNT(g) > 0 FROM GriDataItem g WHERE " +
+           "g.company.id = :companyId AND " +
+           "g.disclosureCode = :disclosureCode AND " +
+           "g.reportingPeriodStart = :startDate AND " +
+           "g.reportingPeriodEnd = :endDate")
+    boolean existsByCompanyIdAndDisclosureCodeAndReportingPeriod(
+            @Param("companyId") Long companyId, 
+            @Param("disclosureCode") String disclosureCode,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 } 

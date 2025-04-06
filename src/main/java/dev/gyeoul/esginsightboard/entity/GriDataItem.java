@@ -1,13 +1,17 @@
 package dev.gyeoul.esginsightboard.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -36,9 +40,23 @@ import java.util.Objects;
  * </p>
  */
 @Entity
-@Table(name = "gri_data_items")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@DynamicUpdate
+@EntityListeners(AuditingEntityListener.class)
+@Table(name = "gri_data_items", 
+       indexes = {
+           @Index(name = "idx_gri_company_id", columnList = "company_id"),
+           @Index(name = "idx_gri_standard_code", columnList = "standard_code"),
+           @Index(name = "idx_gri_disclosure_code", columnList = "disclosure_code"),
+           @Index(name = "idx_gri_category", columnList = "category"),
+           @Index(name = "idx_gri_reporting_period", columnList = "reporting_period_start, reporting_period_end"),
+           @Index(name = "idx_gri_verification_status", columnList = "verification_status"),
+           @Index(name = "idx_gri_company_category", columnList = "company_id, category")
+       })
 public class GriDataItem {
     
     /**
@@ -87,6 +105,23 @@ public class GriDataItem {
     }
     
     /**
+     * 데이터 유형 열거형 (enum)
+     * <p>
+     * GRI 데이터 항목의 데이터 유형을 나타내는 열거형 타입입니다.
+     * </p>
+     */
+    public enum DataType {
+        /** 시계열 데이터 */
+        TIMESERIES,
+        
+        /** 텍스트 데이터 */
+        TEXT,
+        
+        /** 숫자 데이터 */
+        NUMERIC
+    }
+    
+    /**
      * 고유 식별자 (기본 키)
      * <p>
      * 자동 생성되는 ID로, 데이터베이스에서 이 항목을 고유하게 식별합니다.
@@ -102,7 +137,7 @@ public class GriDataItem {
      * 예: "GRI 302" (에너지), "GRI 305" (배출) 등
      * </p>
      */
-    @Column(nullable = false)
+    @Column(name = "standard_code", nullable = false)
     private String standardCode;
     
     /**
@@ -111,7 +146,7 @@ public class GriDataItem {
      * 예: "302-1" (조직 내 에너지 소비), "305-1" (직접 온실가스 배출) 등
      * </p>
      */
-    @Column(nullable = false)
+    @Column(name = "disclosure_code", nullable = false)
     private String disclosureCode;
     
     /**
@@ -120,7 +155,7 @@ public class GriDataItem {
      * 예: "조직 내 에너지 소비", "직접 온실가스 배출(Scope 1)" 등
      * </p>
      */
-    @Column(nullable = false)
+    @Column(name = "disclosure_title", nullable = false)
     private String disclosureTitle;
     
     /**
@@ -130,16 +165,7 @@ public class GriDataItem {
      * 예: "재생 에너지 비중 증가 추세", "온실가스 감축 목표 초과 달성" 등
      * </p>
      */
-    @Column(length = 1000)
-    private String disclosureValue;
-    
-    /**
-     * 데이터에 대한 추가 설명이나 맥락 정보
-     * <p>
-     * 데이터 수집 방법, 계산 방식, 특이 사항 등을 기술하는 필드입니다.
-     * </p>
-     */
-    @Column(length = 2000)
+    @Column(columnDefinition = "TEXT")
     private String description;
     
     /**
@@ -165,6 +191,7 @@ public class GriDataItem {
      * 일반적으로 회계연도 시작일이나 분기 시작일입니다.
      * </p>
      */
+    @Column(name = "reporting_period_start")
     private LocalDate reportingPeriodStart;
     
     /**
@@ -173,6 +200,7 @@ public class GriDataItem {
      * 일반적으로 회계연도 종료일이나 분기 종료일입니다.
      * </p>
      */
+    @Column(name = "reporting_period_end")
     private LocalDate reportingPeriodEnd;
     
     /**
@@ -182,6 +210,7 @@ public class GriDataItem {
      * </p>
      * @see VerificationStatus
      */
+    @Column(name = "verification_status")
     private String verificationStatus;
     
     /**
@@ -209,6 +238,7 @@ public class GriDataItem {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id")
+    @JsonBackReference
     private Company company;
     
     /**
@@ -218,7 +248,8 @@ public class GriDataItem {
      * {@link #onCreate()} 메서드에서 설정됩니다.
      * </p>
      */
-    @Column(nullable = false, updatable = false)
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
     /**
@@ -228,10 +259,32 @@ public class GriDataItem {
      * {@link #onUpdate()} 메서드에서 설정됩니다.
      * </p>
      */
-    @Column(nullable = false)
+    @LastModifiedDate
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
     /**
+     * 데이터 유형
+     * <p>
+     * 데이터의 형식을 지정합니다. 시계열, 텍스트, 숫자 중 하나입니다.
+     * </p>
+     * @see DataType
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DataType dataType = DataType.TEXT;
+    
+    /**
+     * 시계열 데이터 포인트 목록
+     * <p>
+     * 데이터 유형이 TIMESERIES인 경우, 이 필드에 시계열 데이터를 저장합니다.
+     * </p>
+     */
+    @OneToMany(mappedBy = "griDataItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TimeSeriesDataPoint> timeSeriesDataPoints = new ArrayList<>();
+    
+    /**
+     * 검증 날짜
      * GriDataItem 엔티티 생성을 위한 빌더 패턴
      * <p>
      * 사용 예시:
@@ -252,8 +305,7 @@ public class GriDataItem {
                        String disclosureValue, String description, Double numericValue, String unit,
                        LocalDate reportingPeriodStart, LocalDate reportingPeriodEnd,
                        String verificationStatus, String verificationProvider, String category,
-                       Company company
-                      ) {
+                       Company company, DataType dataType) {
         this.id = id;
         this.standardCode = standardCode;
         this.disclosureCode = disclosureCode;
@@ -264,10 +316,13 @@ public class GriDataItem {
         this.unit = unit;
         this.reportingPeriodStart = reportingPeriodStart;
         this.reportingPeriodEnd = reportingPeriodEnd;
-        this.verificationStatus = verificationStatus != null ? verificationStatus : VerificationStatus.UNVERIFIED.getDisplayName();
+        this.verificationStatus = verificationStatus;
         this.verificationProvider = verificationProvider;
         this.category = category;
         this.company = company;
+        if (dataType != null) {
+            this.dataType = dataType;
+        }
     }
     
     /**
@@ -342,6 +397,44 @@ public class GriDataItem {
     }
     
     /**
+     * 시계열 데이터 포인트 추가
+     * <p>
+     * 이 GRI 데이터 항목에 시계열 데이터 포인트를 추가합니다.
+     * </p>
+     * 
+     * @param dataPoint 추가할 시계열 데이터 포인트
+     */
+    public void addTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
+        timeSeriesDataPoints.add(dataPoint);
+        dataPoint.setGriDataItem(this);
+    }
+    
+    /**
+     * 시계열 데이터 포인트 제거
+     * <p>
+     * 이 GRI 데이터 항목에서 시계열 데이터 포인트를 제거합니다.
+     * </p>
+     * 
+     * @param dataPoint 제거할 시계열 데이터 포인트
+     */
+    public void removeTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
+        timeSeriesDataPoints.remove(dataPoint);
+        dataPoint.setGriDataItem(null);
+    }
+    
+    /**
+     * 데이터 유형 설정
+     * <p>
+     * GRI 데이터 항목의 데이터 유형을 설정합니다.
+     * </p>
+     * 
+     * @param dataType 설정할 데이터 유형
+     */
+    public void setDataType(DataType dataType) {
+        this.dataType = dataType;
+    }
+    
+    /**
      * 두 GRI 데이터 항목이 동일한지 비교
      * 
      * @param o 비교할 객체
@@ -363,5 +456,124 @@ public class GriDataItem {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+    
+    /**
+     * 공시 항목 값 설정
+     *
+     * @param disclosureValue 설정할 공시 항목 값
+     */
+    public void setDisclosureValue(String disclosureValue) {
+        this.disclosureValue = disclosureValue;
+    }
+    
+    /**
+     * 설명 설정
+     *
+     * @param description 설정할 설명
+     */
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
+    /**
+     * 숫자 값 설정
+     *
+     * @param numericValue 설정할 숫자 값
+     */
+    public void setNumericValue(Double numericValue) {
+        this.numericValue = numericValue;
+    }
+    
+    /**
+     * 단위 설정
+     *
+     * @param unit 설정할 단위
+     */
+    public void setUnit(String unit) {
+        this.unit = unit;
+    }
+    
+    /**
+     * 보고 기간 시작일 설정
+     *
+     * @param reportingPeriodStart 설정할 보고 기간 시작일
+     */
+    public void setReportingPeriodStart(LocalDate reportingPeriodStart) {
+        this.reportingPeriodStart = reportingPeriodStart;
+    }
+    
+    /**
+     * 보고 기간 종료일 설정
+     *
+     * @param reportingPeriodEnd 설정할 보고 기간 종료일
+     */
+    public void setReportingPeriodEnd(LocalDate reportingPeriodEnd) {
+        this.reportingPeriodEnd = reportingPeriodEnd;
+    }
+    
+    /**
+     * 검증 제공자 설정
+     *
+     * @param verificationProvider 설정할 검증 제공자
+     */
+    public void setVerificationProvider(String verificationProvider) {
+        this.verificationProvider = verificationProvider;
+    }
+
+    /**
+     * 이 항목이 특정 카테고리에 속하는지 확인
+     * 
+     * @param categoryToCheck 확인할 카테고리
+     * @return 해당 카테고리에 속하면 true, 아니면 false
+     */
+    public boolean isInCategory(String categoryToCheck) {
+        return category != null && category.equalsIgnoreCase(categoryToCheck);
+    }
+
+    /**
+     * 이 항목이 특정 보고 기간에 속하는지 확인
+     * 
+     * @param startDate 확인할 시작일
+     * @param endDate 확인할 종료일
+     * @return 해당 기간에 속하면 true, 아니면 false
+     */
+    public boolean isInReportingPeriod(LocalDate startDate, LocalDate endDate) {
+        if (reportingPeriodStart == null || reportingPeriodEnd == null) {
+            return false;
+        }
+        
+        return !reportingPeriodEnd.isBefore(startDate) && !reportingPeriodStart.isAfter(endDate);
+    }
+
+    /**
+     * 이 항목이 특정 검증 상태인지 확인
+     * 
+     * @param status 확인할 검증 상태
+     * @return 해당 상태이면 true, 아니면 false
+     */
+    public boolean hasVerificationStatus(String status) {
+        return verificationStatus != null && verificationStatus.equalsIgnoreCase(status);
+    }
+
+    /**
+     * GRI 데이터 항목 복제 (새 객체 생성)
+     * 
+     * @return 현재 객체의 복제본
+     */
+    public GriDataItem copy() {
+        GriDataItem copy = new GriDataItem();
+        copy.setStandardCode(this.standardCode);
+        copy.setDisclosureCode(this.disclosureCode);
+        copy.setCategory(this.category);
+        copy.setDisclosureTitle(this.disclosureTitle);
+        copy.setDisclosureValue(this.disclosureValue);
+        copy.setDescription(this.description);
+        copy.setReportingPeriodStart(this.reportingPeriodStart);
+        copy.setReportingPeriodEnd(this.reportingPeriodEnd);
+        copy.setVerificationStatus(this.verificationStatus);
+        copy.setVerificationProvider(this.verificationProvider);
+        copy.setCompany(this.company);
+        return copy;
     }
 } 

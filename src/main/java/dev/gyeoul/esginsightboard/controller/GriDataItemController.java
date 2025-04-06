@@ -1,6 +1,8 @@
 package dev.gyeoul.esginsightboard.controller;
 
 import dev.gyeoul.esginsightboard.dto.GriDataItemDto;
+import dev.gyeoul.esginsightboard.dto.GriDataSearchCriteria;
+import dev.gyeoul.esginsightboard.dto.PageResponse;
 import dev.gyeoul.esginsightboard.service.GriDataItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,14 +13,28 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * GRI 데이터 항목 관리 API 컨트롤러
+ * <p>
+ * 이 컨트롤러는 GRI 프레임워크 기반 ESG 데이터 항목에 대한 CRUD 작업을 제공합니다.
+ * 다양한 조건으로 GRI 데이터를 검색하고 필터링할 수 있습니다.
+ * </p>
+ */
+@Slf4j
 @RestController
 @RequestMapping("/api/gri")
 @RequiredArgsConstructor
@@ -33,8 +49,104 @@ public class GriDataItemController {
     @ApiResponse(responseCode = "200", description = "성공적으로 GRI 데이터 항목 목록을 반환합니다.")
     @GetMapping
     public ResponseEntity<List<GriDataItemDto>> getAllGriDataItems() {
+        log.debug("모든 GRI 데이터 항목 조회 요청을 처리합니다.");
         List<GriDataItemDto> griDataItems = griDataItemService.getAllGriDataItems();
         return ResponseEntity.ok(griDataItems);
+    }
+    
+    @Operation(summary = "페이지네이션된 GRI 데이터 항목 조회", 
+              description = "페이지 단위로 GRI 데이터 항목을 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "페이지네이션이 적용된 GRI 데이터 항목 목록을 반환합니다.")
+    @GetMapping("/paged")
+    public ResponseEntity<PageResponse<GriDataItemDto>> getPaginatedGriDataItems(
+            @Parameter(description = "페이지 번호(0부터 시작)", example = "0") 
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기", example = "10") 
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "정렬 기준 (형식: 속성,정렬방향) 예: disclosureCode,asc", example = "disclosureCode,asc") 
+            @RequestParam(required = false) String sort) {
+        
+        log.debug("페이지네이션 GRI 데이터 조회 요청: 페이지={}, 크기={}, 정렬={}", page, size, sort);
+        
+        // 정렬 설정 처리
+        Sort sortObj = Sort.by("id");
+        if (sort != null && !sort.isEmpty()) {
+            String[] parts = sort.split(",");
+            String property = parts[0];
+            
+            if (parts.length > 1 && "desc".equalsIgnoreCase(parts[1])) {
+                sortObj = Sort.by(Sort.Direction.DESC, property);
+            } else {
+                sortObj = Sort.by(Sort.Direction.ASC, property);
+            }
+        }
+        
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+        PageResponse<GriDataItemDto> result = griDataItemService.getPaginatedGriDataItems(pageable);
+        
+        return ResponseEntity.ok(result);
+    }
+    
+    @Operation(summary = "GRI 데이터 항목 필터링", 
+               description = "다양한 조건으로 GRI 데이터 항목을 필터링합니다.")
+    @ApiResponse(responseCode = "200", description = "필터링이 적용된 GRI 데이터 항목 목록을 반환합니다.")
+    @GetMapping("/filter")
+    public ResponseEntity<PageResponse<GriDataItemDto>> filterGriDataItems(
+            @Parameter(description = "카테고리 (Environmental, Social, Governance, Economic, 일반)") 
+            @RequestParam(required = false) String category,
+            @Parameter(description = "GRI 표준 코드 (예: GRI 302)") 
+            @RequestParam(required = false) String standardCode,
+            @Parameter(description = "GRI 공시 코드 (예: 302-1)") 
+            @RequestParam(required = false) String disclosureCode,
+            @Parameter(description = "보고 기간 시작일", example = "2023-01-01") 
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodStart,
+            @Parameter(description = "보고 기간 종료일", example = "2023-12-31") 
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate periodEnd,
+            @Parameter(description = "검증 상태 (예: 검증완료, 검증중, 미검증)") 
+            @RequestParam(required = false) String verificationStatus,
+            @Parameter(description = "회사 ID") 
+            @RequestParam(required = false) Long companyId,
+            @Parameter(description = "키워드 검색 (제목, 설명에서 검색)") 
+            @RequestParam(required = false) String keyword,
+            @Parameter(description = "페이지 번호(0부터 시작)", example = "0") 
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기", example = "10") 
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "정렬 기준 (형식: 속성,정렬방향)", example = "disclosureCode,asc") 
+            @RequestParam(required = false) String sort) {
+        
+        log.debug("GRI 데이터 필터링 요청: 카테고리={}, 표준코드={}, 회사ID={}", category, standardCode, companyId);
+        
+        // 검색 조건 객체 생성
+        GriDataSearchCriteria criteria = GriDataSearchCriteria.builder()
+                .category(category)
+                .standardCode(standardCode)
+                .disclosureCode(disclosureCode)
+                .reportingPeriodStart(periodStart)
+                .reportingPeriodEnd(periodEnd)
+                .verificationStatus(verificationStatus)
+                .companyId(companyId)
+                .keyword(keyword)
+                .sort(sort)
+                .build();
+        
+        // 정렬 설정 처리
+        Sort sortObj = Sort.by("id");
+        if (StringUtils.hasText(sort)) {
+            String[] parts = sort.split(",");
+            String property = parts[0];
+            
+            if (parts.length > 1 && "desc".equalsIgnoreCase(parts[1])) {
+                sortObj = Sort.by(Sort.Direction.DESC, property);
+            } else {
+                sortObj = Sort.by(Sort.Direction.ASC, property);
+            }
+        }
+        
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+        PageResponse<GriDataItemDto> result = griDataItemService.findByCriteria(criteria, pageable);
+        
+        return ResponseEntity.ok(result);
     }
 
     @Operation(summary = "ID로 GRI 데이터 항목 조회", description = "특정 ID의 GRI 데이터 항목을 조회합니다.")
@@ -46,9 +158,35 @@ public class GriDataItemController {
     public ResponseEntity<GriDataItemDto> getGriDataItemById(
             @Parameter(description = "GRI 데이터 항목 ID", required = true) 
             @PathVariable Long id) {
+        log.debug("ID가 {}인 GRI 데이터 항목 조회 요청을 처리합니다.", id);
         return griDataItemService.getGriDataItemById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @Operation(summary = "특정 회사의 GRI 데이터 항목 맵 조회", 
+               description = "특정 회사의 모든 GRI 데이터 항목을 Map 형태로 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "회사의 GRI 데이터 항목 맵을 반환합니다.")
+    @GetMapping("/company/{companyId}/map")
+    public ResponseEntity<Map<String, GriDataItemDto>> getGriDataMapByCompany(
+            @Parameter(description = "회사 ID", required = true) 
+            @PathVariable Long companyId) {
+        log.debug("회사 ID {}의 GRI 데이터 항목 맵 조회 요청을 처리합니다.", companyId);
+        Map<String, GriDataItemDto> griDataMap = griDataItemService.getGriDataMapByCompanyId(companyId);
+        return ResponseEntity.ok(griDataMap);
+    }
+
+    @Operation(summary = "특정 회사의 GRI 데이터 항목 맵 업데이트", 
+               description = "특정 회사의 GRI 데이터 항목들을 Map 형태로 일괄 업데이트합니다.")
+    @ApiResponse(responseCode = "200", description = "회사의 GRI 데이터 항목이 성공적으로 업데이트되었습니다.")
+    @PutMapping("/company/{companyId}/map")
+    public ResponseEntity<Map<String, GriDataItemDto>> updateGriDataMapForCompany(
+            @Parameter(description = "회사 ID", required = true) 
+            @PathVariable Long companyId,
+            @RequestBody Map<String, GriDataItemDto> griDataMap) {
+        log.debug("회사 ID {}의 GRI 데이터 항목 맵 업데이트 요청을 처리합니다. 항목 수: {}", companyId, griDataMap.size());
+        Map<String, GriDataItemDto> updatedMap = griDataItemService.updateGriDataForCompany(companyId, griDataMap);
+        return ResponseEntity.ok(updatedMap);
     }
 
     @Operation(summary = "카테고리별 GRI 데이터 항목 조회", description = "Environmental, Social, Governance 카테고리별 GRI 데이터 항목을 조회합니다.")
@@ -58,6 +196,7 @@ public class GriDataItemController {
             @Parameter(description = "GRI 데이터 항목 카테고리 (Environmental, Social, Governance)", required = true, 
                        schema = @Schema(allowableValues = {"Environmental", "Social", "Governance"}))
             @PathVariable String category) {
+        log.debug("카테고리 {}에 속하는 GRI 데이터 항목 조회 요청을 처리합니다.", category);
         List<GriDataItemDto> griDataItems = griDataItemService.getGriDataItemsByCategory(category);
         return ResponseEntity.ok(griDataItems);
     }
@@ -68,6 +207,7 @@ public class GriDataItemController {
     public ResponseEntity<List<GriDataItemDto>> getGriDataItemsByStandardCode(
             @Parameter(description = "GRI 표준 코드 (예: GRI 302, GRI 305)", required = true)
             @PathVariable String standardCode) {
+        log.debug("표준 코드 {}에 속하는 GRI 데이터 항목 조회 요청을 처리합니다.", standardCode);
         List<GriDataItemDto> griDataItems = griDataItemService.getGriDataItemsByStandardCode(standardCode);
         return ResponseEntity.ok(griDataItems);
     }
@@ -78,6 +218,7 @@ public class GriDataItemController {
     public ResponseEntity<List<GriDataItemDto>> getGriDataItemsByDisclosureCode(
             @Parameter(description = "공시 코드 (예: 302-1, 305-1)", required = true)
             @PathVariable String disclosureCode) {
+        log.debug("공시 코드 {}에 속하는 GRI 데이터 항목 조회 요청을 처리합니다.", disclosureCode);
         List<GriDataItemDto> griDataItems = griDataItemService.getGriDataItemsByDisclosureCode(disclosureCode);
         return ResponseEntity.ok(griDataItems);
     }
@@ -90,6 +231,7 @@ public class GriDataItemController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @Parameter(description = "보고 기간 종료일 (형식: yyyy-MM-dd)", required = true)
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        log.debug("보고 기간 {} ~ {} 내의 GRI 데이터 항목 조회 요청을 처리합니다.", startDate, endDate);
         List<GriDataItemDto> griDataItems = griDataItemService.getGriDataItemsByReportingPeriod(startDate, endDate);
         return ResponseEntity.ok(griDataItems);
     }
@@ -100,6 +242,7 @@ public class GriDataItemController {
     public ResponseEntity<List<GriDataItemDto>> getGriDataItemsByVerificationStatus(
             @Parameter(description = "검증 상태 (미검증, 검증중, 검증완료 등)", required = true)
             @PathVariable String status) {
+        log.debug("검증 상태가 {}인 GRI 데이터 항목 조회 요청을 처리합니다.", status);
         List<GriDataItemDto> griDataItems = griDataItemService.getGriDataItemsByVerificationStatus(status);
         return ResponseEntity.ok(griDataItems);
     }
@@ -110,8 +253,12 @@ public class GriDataItemController {
     public ResponseEntity<GriDataItemDto> createGriDataItem(
             @Parameter(description = "생성할 GRI 데이터 항목", required = true, 
                        schema = @Schema(implementation = GriDataItemDto.class))
-            @RequestBody GriDataItemDto griDataItemDto) {
-        GriDataItemDto createdGriDataItem = griDataItemService.saveGriDataItem(griDataItemDto);
+            @RequestBody GriDataItemDto griDataItemDto,
+            @Parameter(description = "회사 ID", required = true)
+            @RequestParam Long companyId) {
+        log.debug("GRI 데이터 항목 생성 요청을 처리합니다. 공시 코드: {}, 회사 ID: {}", 
+                  griDataItemDto.getDisclosureCode(), companyId);
+        GriDataItemDto createdGriDataItem = griDataItemService.saveGriDataItem(griDataItemDto, companyId);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdGriDataItem);
     }
 
@@ -127,6 +274,7 @@ public class GriDataItemController {
             @Parameter(description = "수정된 GRI 데이터 항목", required = true,
                        schema = @Schema(implementation = GriDataItemDto.class))
             @RequestBody GriDataItemDto griDataItemDto) {
+        log.debug("ID가 {}인 GRI 데이터 항목 수정 요청을 처리합니다.", id);
         return griDataItemService.updateGriDataItem(id, griDataItemDto)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -138,7 +286,22 @@ public class GriDataItemController {
     public ResponseEntity<Void> deleteGriDataItem(
             @Parameter(description = "삭제할 GRI 데이터 항목 ID", required = true)
             @PathVariable Long id) {
+        log.debug("ID가 {}인 GRI 데이터 항목 삭제 요청을 처리합니다.", id);
         griDataItemService.deleteGriDataItem(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "GRI 데이터 항목 일괄 저장", description = "여러 GRI 데이터 항목을 한 번에 저장합니다.")
+    @ApiResponse(responseCode = "201", description = "GRI 데이터 항목들이 성공적으로 저장되었습니다.")
+    @PostMapping("/batch")
+    public ResponseEntity<List<GriDataItemDto>> batchCreateGriDataItems(
+            @Parameter(description = "저장할 GRI 데이터 항목 목록", required = true)
+            @RequestBody List<GriDataItemDto> griDataItems,
+            @Parameter(description = "회사 ID", required = true)
+            @RequestParam Long companyId) {
+        log.debug("GRI 데이터 항목 일괄 저장 요청을 처리합니다. 항목 수: {}, 회사 ID: {}", 
+                 griDataItems.size(), companyId);
+        List<GriDataItemDto> createdItems = griDataItemService.saveAllGriDataItems(griDataItems, companyId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdItems);
     }
 } 
