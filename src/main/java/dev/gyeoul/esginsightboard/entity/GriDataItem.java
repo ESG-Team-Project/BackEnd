@@ -282,7 +282,6 @@ public class GriDataItem {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
     private DataType dataType = DataType.TEXT;
     
     /**
@@ -292,7 +291,6 @@ public class GriDataItem {
      * </p>
      */
     @OneToMany(mappedBy = "griDataItem", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
     private List<TimeSeriesDataPoint> timeSeriesDataPoints = new ArrayList<>();
     
     /**
@@ -334,6 +332,8 @@ public class GriDataItem {
         this.company = company;
         if (dataType != null) {
             this.dataType = dataType;
+        } else {
+            this.dataType = DataType.TEXT;
         }
     }
     
