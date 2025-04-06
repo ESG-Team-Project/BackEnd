@@ -282,6 +282,7 @@ public class GriDataItem {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private DataType dataType = DataType.TEXT;
     
     /**
@@ -291,6 +292,7 @@ public class GriDataItem {
      * </p>
      */
     @OneToMany(mappedBy = "griDataItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<TimeSeriesDataPoint> timeSeriesDataPoints = new ArrayList<>();
     
     /**
