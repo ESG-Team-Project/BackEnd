@@ -10,6 +10,7 @@ import dev.gyeoul.esginsightboard.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -52,10 +53,10 @@ public class UserService {
         Company company = findOrCreateCompany(request);
         
         // 2. 사용자 엔티티 생성 및 저장 (회사 정보 연결)
-        User savedUser = createAndSaveUser(request, company);
+        User user = createAndSaveUser(request, company);
         
         log.info("새 사용자 등록 완료: {}, 회사: {}", request.getEmail(), company.getName());
-        return UserDto.fromEntity(savedUser);
+        return UserDto.fromEntity(user);
     }
 
     /**
@@ -65,21 +66,23 @@ public class UserService {
      * @return 찾거나 생성된 회사 엔티티
      */
     private Company findOrCreateCompany(SignupRequest request) {
-        // 회사 코드로 회사 정보 조회12
-        Optional<Company> existingCompany = companyRepository.findByCompanyCode(request.getCompanyCode());
-        
-        // 존재하면 기존 회사 정보 반환
-        if (existingCompany.isPresent()) {
-            return existingCompany.get();
+        // 회사 정보가 없는 경우 null 반환
+        if (request.getCompanyCode() == null || request.getCompanyCode().isBlank()) {
+            return null;
         }
         
-        // 존재하지 않으면 새로운 회사 정보 생성 및 저장
-        Company newCompany = Company.builder()
-                .name(request.getCompanyName())
-                .companyCode(request.getCompanyCode())
-                .build();
-        
-        return companyRepository.save(newCompany);
+        // 회사 코드로 회사 정보 찾기
+        return companyRepository.findByCompanyCode(request.getCompanyCode())
+                .orElseGet(() -> {
+                    // 회사 정보가 없으면 새로 생성
+                    Company newCompany = Company.builder()
+                            .name(request.getCompanyName())
+                            .companyCode(request.getCompanyCode())
+                            .companyPhoneNumber(request.getCompanyPhoneNumber())
+                            .build();
+                    
+                    return companyRepository.save(newCompany);
+                });
     }
 
     /**
@@ -194,18 +197,18 @@ public class UserService {
     // 사용자 데이터 업데이트
     @Transactional
     public UserDto updateUser(Long userId, UserUpdateRequest request) {
-        // 1. 사용자 ID로 기존 사용자 조회 (없으면 예외 발생)
+        // 1. 사용자 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
-
-        // 2. 이메일 변경 시 중복 검사 수행 (현재 사용자 제외)
-        if (!user.getEmail().equals(request.getEmail())) {
-            if (userRepository.existsByEmailAndIdNot(request.getEmail(), userId)) {
-                throw new UserAlreadyExistsException("이미 사용 중인 이메일입니다: " + request.getEmail());
-            }
+        
+        // 2. 이메일 변경 요청이면서 이미 존재하는 이메일인 경우 체크
+        if (!user.getEmail().equals(request.getEmail()) && 
+                userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("이미 사용 중인 이메일입니다: " + request.getEmail());
         }
-
+        
         // 3. 비밀번호 변경 요청이 있는 경우
+        String updatedPassword = user.getPassword();
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             // 3.1 현재 비밀번호 검증
             if (request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()) {
@@ -218,21 +221,25 @@ public class UserService {
             }
             
             // 3.3 새 비밀번호 설정
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            updatedPassword = passwordEncoder.encode(request.getPassword());
         }
 
-        // 4. 나머지 필드 업데이트
-        user.setName(request.getName());
-        user.setEmail(request.getEmail());
-        
-        // 전화번호는 null 허용
-        if (request.getPhoneNumber() != null) {
-            user.setPhoneNumber(request.getPhoneNumber());
-        }
+        // 4. Builder 패턴으로 새 User 객체 생성
+        User updatedUser = User.builder()
+            .id(user.getId())
+            .email(request.getEmail())
+            .password(updatedPassword)
+            .name(request.getName())
+            .phoneNumber(request.getPhoneNumber() != null ? request.getPhoneNumber() : user.getPhoneNumber())
+            .company(user.getCompany())
+            .accountNonExpired(user.isAccountNonExpired())
+            .accountNonLocked(user.isAccountNonLocked())
+            .credentialsNonExpired(user.isCredentialsNonExpired())
+            .enabled(user.isEnabled())
+            .build();
 
         // 5. 저장 및 업데이트된 사용자 정보 반환
-        User updatedUser = userRepository.save(user);
-        return UserDto.fromEntity(updatedUser);
+        return UserDto.fromEntity(userRepository.save(updatedUser));
     }
 
     // 회사 데이터 업데이트
@@ -242,12 +249,26 @@ public class UserService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
 
         Company company = user.getCompany();
-
-        company.setName(request.getCompanyName());
-        company.setCeoName(request.getCeoName());
-        company.setCompanyCode(request.getCompanyCode());
-        company.setCompanyPhoneNumber(request.getCompanyPhoneNumber());
-
-        userRepository.save(user);
+        
+        // Builder 패턴으로 새 Company 객체 생성
+        Company updatedCompany = Company.builder()
+            .id(company.getId())
+            .name(request.getCompanyName())
+            .ceoName(request.getCeoName())
+            .companyCode(request.getCompanyCode())
+            .companyPhoneNumber(request.getCompanyPhoneNumber())
+            .businessNumber(company.getBusinessNumber())
+            .industry(company.getIndustry())
+            .sector(company.getSector())
+            .employeeCount(company.getEmployeeCount())
+            .description(company.getDescription())
+            .griDataItems(company.getGriDataItems())
+            .build();
+            
+        companyRepository.save(updatedCompany);
+        
+        // 사용자의 회사 참조 업데이트
+        User updatedUser = user.setCompany(updatedCompany);
+        userRepository.save(updatedUser);
     }
 } 

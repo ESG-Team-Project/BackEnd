@@ -16,6 +16,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,69 +44,8 @@ public class ReportController {
     private final ReportGenerationService reportGenerationService;
 
     /**
-     * 회사 ID를 기반으로 ESG 보고서를 생성하고 다운로드합니다.
-     * 
-     * @param companyId 회사 ID
-     * @return 생성된 DOCX 보고서 파일
-     * @throws IOException 파일 생성 중 오류 발생 시
-     */
-    @Operation(
-        summary = "ESG 보고서 다운로드",
-        description = "회사 ID를 기반으로 GRI 프레임워크에 맞춘 ESG 보고서를 DOCX 형식으로 생성하여 다운로드합니다."
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "ESG 보고서 다운로드 성공",
-            content = @Content(mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "회사 정보를 찾을 수 없음",
-            content = @Content
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "보고서 생성 중 오류 발생 (ESG 데이터 없음)",
-            content = @Content
-        ),
-        @ApiResponse(
-            responseCode = "500",
-            description = "서버 내부 오류",
-            content = @Content
-        )
-    })
-    @GetMapping("/esg/{companyId}")
-    public ResponseEntity<byte[]> downloadEsgReport(
-            @Parameter(description = "보고서를 생성할 회사의 ID", required = true)
-            @PathVariable Long companyId) throws IOException {
-        // 보고서 생성 서비스 호출
-        byte[] report = reportGenerationService.generateEsgReportByCompanyId(companyId);
-        
-        // 파일명 생성 (회사 ID + 현재 날짜)
-        String filename = "ESG_Report_Company_" + companyId + "_" + 
-                LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".docx";
-        
-        // 한글 파일명을 위한 인코딩
-        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8.toString())
-                .replaceAll("\\+", "%20");
-        
-        // HTTP 헤더 설정
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentDispositionFormData("attachment", encodedFilename);
-        headers.setContentLength(report.length);
-        
-        // 응답 반환
-        return ResponseEntity.ok()
-                .headers(headers)
-                .body(report);
-    }
-    
-    /**
      * 로그인한 사용자의 회사에 대한 ESG 보고서를 생성하고 다운로드합니다.
      * 
-     * @param request HTTP 요청 객체 (JWT 토큰 검증 결과 포함)
      * @return 생성된 DOCX 보고서 파일
      * @throws IOException 파일 생성 중 오류 발생 시
      */
@@ -135,11 +76,12 @@ public class ReportController {
             content = @Content
         )
     })
-    @GetMapping("/my-company")
-    public ResponseEntity<byte[]> downloadMyCompanyReport(HttpServletRequest request) throws IOException {
-        // JWT 필터를 통해 주입된 현재 사용자 정보 꺼내기
-        UserDto currentUser = (UserDto) request.getAttribute("user");
-
+    @GetMapping("/company")
+    public ResponseEntity<byte[]> downloadCompanyReport() throws IOException {
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto currentUser = (UserDto) authentication.getPrincipal();
+        
         // 인증되지 않은 경우 401 반환
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

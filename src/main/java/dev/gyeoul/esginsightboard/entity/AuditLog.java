@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Getter
-@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -62,6 +61,17 @@ public class AuditLog {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * 사용자 설정 메서드 (필요한 경우에만 사용)
+     *
+     * @param user 설정할 사용자
+     * @return 현재 AuditLog 인스턴스 (메서드 체이닝용)
+     */
+    public AuditLog setUser(User user) {
+        this.user = user;
+        return this;
+    }
 
     /**
      * 감사 로그 이벤트 유형 열거형

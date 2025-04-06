@@ -111,27 +111,27 @@ public class GriDataItemMapper {
             }
         }
         
-        // 엔티티 생성 및 설정
-        GriDataItem entity = new GriDataItem();
-        
+        // Builder 패턴을 사용하여 엔티티 생성
+        GriDataItem.GriDataItemBuilder builder = GriDataItem.builder()
+            .standardCode(dto.getStandardCode())
+            .disclosureCode(dto.getDisclosureCode())
+            .disclosureTitle(dto.getDisclosureTitle())
+            .disclosureValue(dto.getDisclosureValue())
+            .description(dto.getDescription())
+            .numericValue(dto.getNumericValue())
+            .unit(dto.getUnit())
+            .reportingPeriodStart(dto.getReportingPeriodStart())
+            .reportingPeriodEnd(dto.getReportingPeriodEnd())
+            .verificationStatus(dto.getVerificationStatus())
+            .verificationProvider(dto.getVerificationProvider())
+            .category(dto.getCategory());
+            
+        // ID가 있으면 설정
         if (dto.getId() != null) {
-            entity.setId(dto.getId());
+            builder.id(dto.getId());
         }
         
-        entity.setStandardCode(dto.getStandardCode());
-        entity.setDisclosureCode(dto.getDisclosureCode());
-        entity.setDisclosureTitle(dto.getDisclosureTitle());
-        entity.setDisclosureValue(dto.getDisclosureValue());
-        entity.setDescription(dto.getDescription());
-        entity.setNumericValue(dto.getNumericValue());
-        entity.setUnit(dto.getUnit());
-        entity.setReportingPeriodStart(dto.getReportingPeriodStart());
-        entity.setReportingPeriodEnd(dto.getReportingPeriodEnd());
-        entity.setVerificationStatus(dto.getVerificationStatus());
-        entity.setVerificationProvider(dto.getVerificationProvider());
-        entity.setCategory(dto.getCategory());
-        
-        return entity;
+        return builder.build();
     }
     
     /**
@@ -139,10 +139,11 @@ public class GriDataItemMapper {
      * 
      * @param dto 업데이트에 사용할 GriDataItemDto
      * @param entity 업데이트할 GriDataItem 엔티티
+     * @return 업데이트된 GriDataItem 엔티티
      */
-    public void updateEntityFromDto(GriDataItemDto dto, GriDataItem entity) {
+    public GriDataItem updateEntityFromDto(GriDataItemDto dto, GriDataItem entity) {
         if (dto == null || entity == null) {
-            return;
+            return entity;
         }
         
         // 시계열 데이터가 있지만 disclosureValue에 반영되지 않은 경우 처리
@@ -171,18 +172,25 @@ public class GriDataItemMapper {
             }
         }
         
-        // 엔티티 필드 업데이트 (ID는 변경하지 않음)
-        entity.setStandardCode(dto.getStandardCode());
-        entity.setDisclosureCode(dto.getDisclosureCode());
-        entity.setDisclosureTitle(dto.getDisclosureTitle());
-        entity.setDisclosureValue(dto.getDisclosureValue());
-        entity.setDescription(dto.getDescription());
-        entity.setNumericValue(dto.getNumericValue());
-        entity.setUnit(dto.getUnit());
-        entity.setReportingPeriodStart(dto.getReportingPeriodStart());
-        entity.setReportingPeriodEnd(dto.getReportingPeriodEnd());
-        entity.setVerificationStatus(dto.getVerificationStatus());
-        entity.setVerificationProvider(dto.getVerificationProvider());
-        entity.setCategory(dto.getCategory());
+        // 새 엔티티 생성하여 반환 (불변성 유지)
+        return GriDataItem.builder()
+            .id(entity.getId()) // 기존 ID 유지
+            .standardCode(dto.getStandardCode())
+            .disclosureCode(dto.getDisclosureCode())
+            .disclosureTitle(dto.getDisclosureTitle())
+            .disclosureValue(dto.getDisclosureValue())
+            .description(dto.getDescription())
+            .numericValue(dto.getNumericValue())
+            .unit(dto.getUnit())
+            .reportingPeriodStart(dto.getReportingPeriodStart())
+            .reportingPeriodEnd(dto.getReportingPeriodEnd())
+            .verificationStatus(dto.getVerificationStatus())
+            .verificationProvider(dto.getVerificationProvider())
+            .category(dto.getCategory())
+            .company(entity.getCompany())  // 기존 관계 유지
+            .createdAt(entity.getCreatedAt())  // 생성 시간 유지
+            .dataType(entity.getDataType())  // 데이터 타입 유지
+            .timeSeriesDataPoints(entity.getTimeSeriesDataPoints())  // 기존 시계열 데이터 유지
+            .build();
     }
 } 

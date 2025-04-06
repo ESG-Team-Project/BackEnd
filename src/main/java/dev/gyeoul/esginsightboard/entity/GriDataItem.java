@@ -41,10 +41,9 @@ import java.util.Objects;
  */
 @Entity
 @Getter
-@Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 @DynamicUpdate
 @EntityListeners(AuditingEntityListener.class)
 @Table(name = "gri_data_items", 
@@ -282,6 +281,7 @@ public class GriDataItem {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private DataType dataType = DataType.TEXT;
     
     /**
@@ -293,50 +293,6 @@ public class GriDataItem {
     @OneToMany(mappedBy = "griDataItem", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<TimeSeriesDataPoint> timeSeriesDataPoints = new ArrayList<>();
-    
-    /**
-     * 검증 날짜
-     * GriDataItem 엔티티 생성을 위한 빌더 패턴
-     * <p>
-     * 사용 예시:
-     * <pre>
-     * GriDataItem item = GriDataItem.builder()
-     *     .standardCode("GRI 302")
-     *     .disclosureCode("302-1")
-     *     .disclosureTitle("조직 내 에너지 소비")
-     *     .numericValue(10000.0)
-     *     .unit("MWh")
-     *     .category("E")
-     *     .build();
-     * </pre>
-     * </p>
-     */
-    @Builder
-    public GriDataItem(Long id, String standardCode, String disclosureCode, String disclosureTitle,
-                       String disclosureValue, String description, Double numericValue, String unit,
-                       LocalDate reportingPeriodStart, LocalDate reportingPeriodEnd,
-                       String verificationStatus, String verificationProvider, String category,
-                       Company company, DataType dataType) {
-        this.id = id;
-        this.standardCode = standardCode;
-        this.disclosureCode = disclosureCode;
-        this.disclosureTitle = disclosureTitle;
-        this.disclosureValue = disclosureValue;
-        this.description = description;
-        this.numericValue = numericValue;
-        this.unit = unit;
-        this.reportingPeriodStart = reportingPeriodStart;
-        this.reportingPeriodEnd = reportingPeriodEnd;
-        this.verificationStatus = verificationStatus;
-        this.verificationProvider = verificationProvider;
-        this.category = category;
-        this.company = company;
-        if (dataType != null) {
-            this.dataType = dataType;
-        } else {
-            this.dataType = DataType.TEXT;
-        }
-    }
     
     /**
      * 엔티티 생성 시 호출되어 생성 시간과 수정 시간을 현재 시간으로 설정
@@ -363,31 +319,6 @@ public class GriDataItem {
         this.updatedAt = LocalDateTime.now();
     }
     
-
-    /**
-     * 검증 상태 설정 메서드
-     * <p>
-     * 이 메서드는 GRI 데이터 항목의 검증 상태를 변경할 때 사용합니다.
-     * </p>
-     * 
-     * @param status 설정할 검증 상태 열거형
-     */
-    public void setVerificationStatus(VerificationStatus status) {
-        this.verificationStatus = status.getDisplayName();
-    }
-    
-    /**
-     * 검증 상태 설정 메서드 (문자열 버전)
-     * <p>
-     * 이 메서드는 문자열로 GRI 데이터 항목의 검증 상태를 변경할 때 사용합니다.
-     * </p>
-     * 
-     * @param statusDisplayName 설정할 검증 상태 문자열
-     */
-    public void setVerificationStatus(String statusDisplayName) {
-        this.verificationStatus = statusDisplayName;
-    }
-    
     /**
      * 현재 검증 상태를 열거형으로 반환
      * 
@@ -398,31 +329,21 @@ public class GriDataItem {
     }
     
     /**
-     * 회사 설정 메서드
-     * <p>
-     * 이 메서드는 GRI 데이터 항목이 속한 회사를 설정할 때 사용합니다.
-     * </p>
-     * 
-     * @param company 설정할 회사 엔티티
-     */
-    public void setCompany(Company company) {
-        this.company = company;
-    }
-    
-    /**
      * 시계열 데이터 포인트 추가
      * <p>
      * 이 GRI 데이터 항목에 시계열 데이터 포인트를 추가합니다.
      * </p>
      * 
      * @param dataPoint 추가할 시계열 데이터 포인트
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
      */
-    public void addTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
+    public GriDataItem addTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
         if (timeSeriesDataPoints == null) {
             timeSeriesDataPoints = new ArrayList<>();
         }
         timeSeriesDataPoints.add(dataPoint);
         dataPoint.setGriDataItem(this);
+        return this;
     }
     
     /**
@@ -432,10 +353,54 @@ public class GriDataItem {
      * </p>
      * 
      * @param dataPoint 제거할 시계열 데이터 포인트
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
      */
-    public void removeTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
+    public GriDataItem removeTimeSeriesDataPoint(TimeSeriesDataPoint dataPoint) {
         timeSeriesDataPoints.remove(dataPoint);
         dataPoint.setGriDataItem(null);
+        return this;
+    }
+    
+    /**
+     * 검증 상태 설정 메서드
+     * <p>
+     * 이 메서드는 GRI 데이터 항목의 검증 상태를 변경할 때 사용합니다.
+     * </p>
+     * 
+     * @param status 설정할 검증 상태 열거형
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
+     */
+    public GriDataItem setVerificationStatus(VerificationStatus status) {
+        this.verificationStatus = status.getDisplayName();
+        return this;
+    }
+    
+    /**
+     * 검증 상태 설정 메서드 (문자열 버전)
+     * <p>
+     * 이 메서드는 문자열로 GRI 데이터 항목의 검증 상태를 변경할 때 사용합니다.
+     * </p>
+     * 
+     * @param statusDisplayName 설정할 검증 상태 문자열
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
+     */
+    public GriDataItem setVerificationStatus(String statusDisplayName) {
+        this.verificationStatus = statusDisplayName;
+        return this;
+    }
+    
+    /**
+     * 회사 설정 메서드
+     * <p>
+     * 이 메서드는 GRI 데이터 항목이 속한 회사를 설정할 때 사용합니다.
+     * </p>
+     * 
+     * @param company 설정할 회사 엔티티
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
+     */
+    public GriDataItem setCompany(Company company) {
+        this.company = company;
+        return this;
     }
     
     /**
@@ -445,9 +410,11 @@ public class GriDataItem {
      * </p>
      * 
      * @param dataType 설정할 데이터 유형
+     * @return 현재 GriDataItem 인스턴스 (메서드 체이닝용)
      */
-    public void setDataType(DataType dataType) {
+    public GriDataItem setDataType(DataType dataType) {
         this.dataType = dataType;
+        return this;
     }
     
     /**
@@ -474,69 +441,6 @@ public class GriDataItem {
         return Objects.hash(id);
     }
     
-    /**
-     * 공시 항목 값 설정
-     *
-     * @param disclosureValue 설정할 공시 항목 값
-     */
-    public void setDisclosureValue(String disclosureValue) {
-        this.disclosureValue = disclosureValue;
-    }
-    
-    /**
-     * 설명 설정
-     *
-     * @param description 설정할 설명
-     */
-    public void setDescription(String description) {
-        this.description = description;
-    }
-    
-    /**
-     * 숫자 값 설정
-     *
-     * @param numericValue 설정할 숫자 값
-     */
-    public void setNumericValue(Double numericValue) {
-        this.numericValue = numericValue;
-    }
-    
-    /**
-     * 단위 설정
-     *
-     * @param unit 설정할 단위
-     */
-    public void setUnit(String unit) {
-        this.unit = unit;
-    }
-    
-    /**
-     * 보고 기간 시작일 설정
-     *
-     * @param reportingPeriodStart 설정할 보고 기간 시작일
-     */
-    public void setReportingPeriodStart(LocalDate reportingPeriodStart) {
-        this.reportingPeriodStart = reportingPeriodStart;
-    }
-    
-    /**
-     * 보고 기간 종료일 설정
-     *
-     * @param reportingPeriodEnd 설정할 보고 기간 종료일
-     */
-    public void setReportingPeriodEnd(LocalDate reportingPeriodEnd) {
-        this.reportingPeriodEnd = reportingPeriodEnd;
-    }
-    
-    /**
-     * 검증 제공자 설정
-     *
-     * @param verificationProvider 설정할 검증 제공자
-     */
-    public void setVerificationProvider(String verificationProvider) {
-        this.verificationProvider = verificationProvider;
-    }
-
     /**
      * 이 항목이 특정 카테고리에 속하는지 확인
      * 
@@ -578,18 +482,19 @@ public class GriDataItem {
      * @return 현재 객체의 복제본
      */
     public GriDataItem copy() {
-        GriDataItem copy = new GriDataItem();
-        copy.setStandardCode(this.standardCode);
-        copy.setDisclosureCode(this.disclosureCode);
-        copy.setCategory(this.category);
-        copy.setDisclosureTitle(this.disclosureTitle);
-        copy.setDisclosureValue(this.disclosureValue);
-        copy.setDescription(this.description);
-        copy.setReportingPeriodStart(this.reportingPeriodStart);
-        copy.setReportingPeriodEnd(this.reportingPeriodEnd);
-        copy.setVerificationStatus(this.verificationStatus);
-        copy.setVerificationProvider(this.verificationProvider);
-        copy.setCompany(this.company);
-        return copy;
+        return GriDataItem.builder()
+            .standardCode(this.standardCode)
+            .disclosureCode(this.disclosureCode)
+            .category(this.category)
+            .disclosureTitle(this.disclosureTitle)
+            .disclosureValue(this.disclosureValue)
+            .description(this.description)
+            .reportingPeriodStart(this.reportingPeriodStart)
+            .reportingPeriodEnd(this.reportingPeriodEnd)
+            .verificationStatus(this.verificationStatus)
+            .verificationProvider(this.verificationProvider)
+            .company(this.company)
+            .dataType(this.dataType)
+            .build();
     }
 } 

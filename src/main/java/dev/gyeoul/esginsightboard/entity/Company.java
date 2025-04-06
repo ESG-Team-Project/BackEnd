@@ -27,7 +27,7 @@ import java.util.Objects;
 @Entity
 @Table(name = "companies")
 @Getter
-@Setter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Company {
@@ -129,6 +129,7 @@ public class Company {
      * </p>
      */
     @OneToMany(mappedBy = "company", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<GriDataItem> griDataItems = new ArrayList<>();
 
     /**
@@ -150,25 +151,6 @@ public class Company {
      */
     @Column(nullable = false)
     private LocalDateTime updatedAt;
-
-    @Builder
-    public Company(Long id, String name, String ceoName, String companyCode, String companyPhoneNumber, 
-                  String businessNumber, String industry, String sector, Integer employeeCount, 
-                  String description, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this.id = id;
-        this.name = name;
-        this.ceoName = ceoName;
-        this.companyCode = companyCode;
-        this.companyPhoneNumber = companyPhoneNumber;
-        this.businessNumber = businessNumber;
-        this.industry = industry;
-        this.sector = sector;
-        this.employeeCount = employeeCount;
-        this.description = description;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-        this.griDataItems = new ArrayList<>();
-    }
 
     /**
      * 엔티티 생성 시 호출되어 생성 시간과 수정 시간을 현재 시간으로 설정
@@ -202,10 +184,15 @@ public class Company {
      * </p>
      * 
      * @param griDataItem 추가할 GRI 데이터 항목
+     * @return 현재 Company 인스턴스 (메서드 체이닝용)
      */
-    public void addGriDataItem(GriDataItem griDataItem) {
+    public Company addGriDataItem(GriDataItem griDataItem) {
+        if (this.griDataItems == null) {
+            this.griDataItems = new ArrayList<>();
+        }
         this.griDataItems.add(griDataItem);
         griDataItem.setCompany(this);
+        return this;
     }
 
     /**

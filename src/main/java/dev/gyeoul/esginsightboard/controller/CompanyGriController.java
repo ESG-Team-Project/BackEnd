@@ -3,6 +3,7 @@ package dev.gyeoul.esginsightboard.controller;
 import dev.gyeoul.esginsightboard.dto.GriDataItemDto;
 import dev.gyeoul.esginsightboard.dto.GriDataSearchCriteria;
 import dev.gyeoul.esginsightboard.dto.PageResponse;
+import dev.gyeoul.esginsightboard.dto.UserDto;
 import dev.gyeoul.esginsightboard.service.GriDataItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,6 +19,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -40,69 +43,80 @@ public class CompanyGriController {
     private final GriDataItemService griDataItemService;
     
     /**
-     * 회사별 모든 GRI 데이터 조회
+     * 현재 사용자 회사의 모든 GRI 데이터 조회
      *
-     * @param companyId 회사 ID
      * @return GRI 공시 코드를 키로 하는 GRI 데이터 항목 맵
      */
-    @Operation(summary = "회사별 GRI 데이터 조회", description = "특정 회사의 모든 GRI 데이터 항목을 맵 형태로 조회합니다.")
+    @Operation(summary = "회사별 GRI 데이터 조회", description = "현재 로그인한 사용자 회사의 모든 GRI 데이터 항목을 맵 형태로 조회합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "성공적으로 GRI 데이터 맵을 반환합니다."),
             @ApiResponse(responseCode = "404", description = "해당 회사를 찾을 수 없습니다.", content = @Content)
     })
-    @GetMapping("/company/{companyId}/gri")
-    public ResponseEntity<Map<String, GriDataItemDto>> getCompanyGriData(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId) {
+    @GetMapping("/company/gri")
+    public ResponseEntity<Map<String, GriDataItemDto>> getCompanyGriData() {
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
+        log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 조회 요청", companyId);
+        
         Map<String, GriDataItemDto> griData = griDataItemService.getGriDataMapByCompanyId(companyId);
         return ResponseEntity.ok(griData);
     }
     
     /**
-     * 회사의 모든 GRI 데이터 일괄 업데이트
+     * 현재 사용자 회사의 모든 GRI 데이터 일괄 업데이트
      *
-     * @param companyId 회사 ID
      * @param griData GRI 공시 코드를 키로 하는 GRI 데이터 항목 맵
      * @return 업데이트된 GRI 데이터 항목 맵
      */
-    @Operation(summary = "회사별 GRI 데이터 일괄 업데이트", description = "특정 회사의 모든 GRI 데이터 항목을 일괄 업데이트합니다.")
+    @Operation(summary = "회사별 GRI 데이터 일괄 업데이트", description = "현재 로그인한 사용자 회사의 모든 GRI 데이터 항목을 일괄 업데이트합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "성공적으로 GRI 데이터를 업데이트하고 결과를 반환합니다."),
             @ApiResponse(responseCode = "404", description = "해당 회사를 찾을 수 없습니다.", content = @Content)
     })
-    @PutMapping("/company/{companyId}/gri")
+    @PutMapping("/company/gri")
     public ResponseEntity<Map<String, GriDataItemDto>> updateCompanyGriData(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @Parameter(description = "업데이트할 GRI 데이터 맵", required = true) 
             @RequestBody Map<String, GriDataItemDto> griData) {
+        
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
+        log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 일괄 업데이트 요청", companyId);
+        
         Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompany(companyId, griData);
         return ResponseEntity.ok(updatedData);
     }
     
     /**
-     * 회사의 특정 카테고리 GRI 데이터 업데이트
+     * 현재 사용자 회사의 특정 카테고리 GRI 데이터 업데이트
      *
-     * @param companyId 회사 ID
      * @param category 카테고리 (E, S, G)
      * @param griData GRI 공시 코드를 키로 하는 GRI 데이터 항목 맵
      * @return 업데이트된 GRI 데이터 항목 맵
      */
-    @Operation(summary = "회사별 카테고리 GRI 데이터 업데이트", description = "특정 회사의 특정 카테고리(E, S, G) GRI 데이터 항목을 업데이트합니다.")
+    @Operation(summary = "회사별 카테고리 GRI 데이터 업데이트", description = "현재 로그인한 사용자 회사의 특정 카테고리(E, S, G) GRI 데이터 항목을 업데이트합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "성공적으로 GRI 데이터를 업데이트하고 결과를 반환합니다."),
             @ApiResponse(responseCode = "404", description = "해당 회사를 찾을 수 없습니다.", content = @Content)
     })
-    @PutMapping("/company/{companyId}/gri/{category}")
+    @PutMapping("/company/gri/{category}")
     public ResponseEntity<Map<String, GriDataItemDto>> updateCompanyGriDataByCategory(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @Parameter(description = "카테고리 (E, S, G)", required = true) 
             @PathVariable String category,
             @Parameter(description = "업데이트할 GRI 데이터 맵", required = true) 
             @RequestBody Map<String, GriDataItemDto> griData) {
         
-        log.debug("회사 ID {}의 {} 카테고리 GRI 데이터 업데이트 요청. 항목 수: {}", companyId, category, griData.size());
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
+        log.debug("현재 사용자(회사 ID: {})의 {} 카테고리 GRI 데이터 업데이트 요청. 항목 수: {}", companyId, category, griData.size());
         
         // 카테고리별 필터링
         Map<String, GriDataItemDto> filteredData = griData.entrySet().stream()
@@ -138,21 +152,18 @@ public class CompanyGriController {
     }
     
     /**
-     * 회사별 GRI 데이터 페이지네이션 조회
+     * 현재 사용자 회사별 GRI 데이터 페이지네이션 조회
      *
-     * @param companyId 회사 ID
      * @param page 페이지 번호
      * @param size 페이지 크기
      * @param sort 정렬 기준
      * @return 페이지네이션이 적용된 GRI 데이터 항목 목록
      */
     @Operation(summary = "회사별 페이지네이션 GRI 데이터 조회", 
-              description = "특정 회사의 GRI 데이터 항목을 페이지 단위로 조회합니다.")
+              description = "현재 로그인한 사용자 회사의 GRI 데이터 항목을 페이지 단위로 조회합니다.")
     @ApiResponse(responseCode = "200", description = "페이지네이션이 적용된 GRI 데이터 항목 목록을 반환합니다.")
-    @GetMapping("/company/{companyId}/gri/paged")
+    @GetMapping("/company/gri/paged")
     public ResponseEntity<PageResponse<GriDataItemDto>> getCompanyGriDataPaginated(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @Parameter(description = "페이지 번호(0부터 시작)", example = "0") 
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "페이지 크기", example = "10") 
@@ -160,7 +171,12 @@ public class CompanyGriController {
             @Parameter(description = "정렬 기준 (형식: 속성,정렬방향) 예: disclosureCode,asc", example = "disclosureCode,asc") 
             @RequestParam(required = false) String sort) {
         
-        log.debug("회사 ID {}의 페이지네이션 GRI 데이터 조회 요청: 페이지={}, 크기={}, 정렬={}", companyId, page, size, sort);
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
+        log.debug("현재 사용자(회사 ID: {})의 페이지네이션 GRI 데이터 조회 요청: 페이지={}, 크기={}, 정렬={}", companyId, page, size, sort);
         
         // 정렬 설정 처리
         Sort sortObj = Sort.by("id");

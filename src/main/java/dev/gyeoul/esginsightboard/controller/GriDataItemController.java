@@ -3,6 +3,7 @@ package dev.gyeoul.esginsightboard.controller;
 import dev.gyeoul.esginsightboard.dto.GriDataItemDto;
 import dev.gyeoul.esginsightboard.dto.GriDataSearchCriteria;
 import dev.gyeoul.esginsightboard.dto.PageResponse;
+import dev.gyeoul.esginsightboard.dto.UserDto;
 import dev.gyeoul.esginsightboard.service.GriDataItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,6 +21,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -169,26 +172,37 @@ public class GriDataItemController {
     }
 
     @Operation(summary = "특정 회사의 GRI 데이터 항목 맵 조회", 
-               description = "특정 회사의 모든 GRI 데이터 항목을 Map 형태로 조회합니다.")
+               description = "현재 로그인한 사용자 회사의 모든 GRI 데이터 항목을 Map 형태로 조회합니다.")
     @ApiResponse(responseCode = "200", description = "회사의 GRI 데이터 항목 맵을 반환합니다.")
-    @GetMapping("/company/{companyId}/map")
-    public ResponseEntity<Map<String, GriDataItemDto>> getGriDataMapByCompany(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId) {
-        log.debug("회사 ID {}의 GRI 데이터 항목 맵 조회 요청을 처리합니다.", companyId);
+    @GetMapping("/company/map")
+    public ResponseEntity<Map<String, GriDataItemDto>> getGriDataMapByCompany() {
+        log.debug("현재 사용자의 회사 GRI 데이터 항목 맵 조회 요청을 처리합니다.");
+        
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
+        log.debug("사용자 회사 ID: {}", companyId);
+        
         Map<String, GriDataItemDto> griDataMap = griDataItemService.getGriDataMapByCompanyId(companyId);
         return ResponseEntity.ok(griDataMap);
     }
 
     @Operation(summary = "특정 회사의 GRI 데이터 항목 맵 업데이트", 
-               description = "특정 회사의 GRI 데이터 항목들을 Map 형태로 일괄 업데이트합니다.")
+               description = "현재 로그인한 사용자 회사의 GRI 데이터 항목들을 Map 형태로 일괄 업데이트합니다.")
     @ApiResponse(responseCode = "200", description = "회사의 GRI 데이터 항목이 성공적으로 업데이트되었습니다.")
-    @PutMapping("/company/{companyId}/map")
+    @PutMapping("/company/map")
     public ResponseEntity<Map<String, GriDataItemDto>> updateGriDataMapForCompany(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @RequestBody Map<String, GriDataItemDto> griDataMap) {
+        
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
+        
+        Long companyId = userDto.getCompanyId();
         log.debug("회사 ID {}의 GRI 데이터 항목 맵 업데이트 요청을 처리합니다. 항목 수: {}", companyId, griDataMap.size());
+        
         Map<String, GriDataItemDto> updatedMap = griDataItemService.updateGriDataForCompany(companyId, griDataMap);
         return ResponseEntity.ok(updatedMap);
     }
@@ -315,49 +329,25 @@ public class GriDataItemController {
      * 회사별 GRI 데이터 배치 저장 (프론트엔드 호환용)
      */
     @Operation(summary = "회사별 GRI 데이터 배치 저장", 
-               description = "특정 회사의 여러 GRI 데이터 항목을 일괄 저장합니다.")
+               description = "현재 로그인한 사용자 회사의 여러 GRI 데이터 항목을 일괄 저장합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "데이터 저장 성공"),
             @ApiResponse(responseCode = "400", description = "잘못된 요청"),
             @ApiResponse(responseCode = "404", description = "회사를 찾을 수 없음")
     })
-    @PostMapping("/company/{companyId}/batch")
+    @PostMapping("/company/batch")
     public ResponseEntity<List<GriDataItemDto>> batchSaveGriData(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @Parameter(description = "저장할 GRI 데이터 항목 목록", required = true) 
             @RequestBody List<GriDataItemDto> griDataItems) {
         
-        log.debug("회사 ID {}의 GRI 데이터 일괄 저장 요청. 항목 수: {}", companyId, griDataItems.size());
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
         
-        // 각 항목에 회사 ID 설정 (누락된 경우)
-        griDataItems.forEach(item -> {
-            if (item.getCompanyId() == null) {
-                item.setCompanyId(companyId);
-            }
-        });
+        Long companyId = userDto.getCompanyId();
+        log.debug("회사 ID {}의 GRI 데이터 배치 저장 요청을 처리합니다. 항목 수: {}", companyId, griDataItems.size());
         
-        // 데이터 유효성 검사
-        List<GriDataItemDto> validItems = griDataItems.stream()
-            .filter(item -> item.getStandardCode() != null && !item.getStandardCode().isEmpty() && 
-                           item.getDisclosureCode() != null && !item.getDisclosureCode().isEmpty())
-            .collect(Collectors.toList());
-        
-        if (validItems.isEmpty()) {
-            return ResponseEntity.badRequest().body(Collections.emptyList());
-        }
-        
-        // 데이터 저장
-        List<GriDataItemDto> savedItems = new ArrayList<>();
-        for (GriDataItemDto item : validItems) {
-            try {
-                GriDataItemDto savedItem = griDataItemService.saveGriDataItem(item);
-                savedItems.add(savedItem);
-            } catch (Exception e) {
-                log.error("GRI 데이터 저장 오류: {}", e.getMessage());
-            }
-        }
-        
+        List<GriDataItemDto> savedItems = griDataItemService.batchSaveGriData(companyId, griDataItems);
         return ResponseEntity.ok(savedItems);
     }
     
@@ -365,50 +355,27 @@ public class GriDataItemController {
      * 단일 GRI 카테고리 데이터 저장
      */
     @Operation(summary = "단일 GRI 카테고리 데이터 저장", 
-               description = "특정 회사의, 특정 GRI 카테고리 데이터를 저장합니다.")
+               description = "현재 로그인한 사용자 회사의 특정 GRI 카테고리 데이터를 저장합니다.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "데이터 저장 성공"),
             @ApiResponse(responseCode = "400", description = "잘못된 요청"),
             @ApiResponse(responseCode = "404", description = "회사를 찾을 수 없음")
     })
-    @PostMapping("/company/{companyId}/category/{categoryId}")
+    @PostMapping("/company/category/{categoryId}")
     public ResponseEntity<GriDataItemDto> saveSingleCategory(
-            @Parameter(description = "회사 ID", required = true) 
-            @PathVariable Long companyId,
             @Parameter(description = "카테고리 ID (예: GRI-302-1)", required = true) 
             @PathVariable String categoryId,
             @Parameter(description = "저장할 GRI 데이터", required = true) 
             @RequestBody GriDataItemDto categoryData) {
         
-        log.debug("회사 ID {}의 카테고리 {} 데이터 저장 요청", companyId, categoryId);
+        // 현재 인증된 사용자에서 회사 정보를 가져옴
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDto userDto = (UserDto) authentication.getPrincipal();
         
-        // 카테고리 ID 형식 검증 및 파싱
-        String[] parts = categoryId.split("-");
-        if (parts.length < 2) {
-            log.warn("잘못된 카테고리 ID 형식: {}", categoryId);
-            return ResponseEntity.badRequest().build();
-        }
+        Long companyId = userDto.getCompanyId();
+        log.debug("회사 ID {}의 GRI 카테고리 {} 데이터 저장 요청을 처리합니다.", companyId, categoryId);
         
-        // 카테고리 데이터 설정
-        categoryData.setCompanyId(companyId);
-        categoryData.setStandardCode(parts[0]);
-        categoryData.setDisclosureCode(parts[1]);
-        
-        // 기존 데이터 조회 (업데이트인 경우)
-        Optional<GriDataItemDto> existingData = griDataItemService
-            .findByCompanyIdAndStandardCodeAndDisclosureCode(companyId, parts[0], parts[1]);
-        
-        if (existingData.isPresent()) {
-            categoryData.setId(existingData.get().getId());
-        }
-        
-        // 데이터 저장
-        try {
-            GriDataItemDto savedData = griDataItemService.saveGriDataItem(categoryData);
-            return ResponseEntity.ok(savedData);
-        } catch (Exception e) {
-            log.error("카테고리 {} 데이터 저장 오류: {}", categoryId, e.getMessage());
-            return ResponseEntity.internalServerError().build();
-        }
+        GriDataItemDto savedCategory = griDataItemService.saveSingleCategory(companyId, categoryId, categoryData);
+        return ResponseEntity.ok(savedCategory);
     }
 } 

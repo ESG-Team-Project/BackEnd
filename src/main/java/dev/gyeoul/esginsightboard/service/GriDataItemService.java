@@ -566,4 +566,87 @@ public class GriDataItemService {
                 .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 특정 회사의 여러 GRI 데이터 항목을 일괄 저장
+     *
+     * @param companyId 회사 ID
+     * @param griDataItems 저장할 GRI 데이터 항목 목록
+     * @return 저장된 GRI 데이터 항목 목록
+     */
+    @Transactional
+    public List<GriDataItemDto> batchSaveGriData(Long companyId, List<GriDataItemDto> griDataItems) {
+        log.debug("회사 ID {}의 GRI 데이터 일괄 저장 요청. 항목 수: {}", companyId, griDataItems.size());
+        
+        // 각 항목에 회사 ID 설정 (누락된 경우)
+        griDataItems.forEach(item -> {
+            if (item.getCompanyId() == null) {
+                item.setCompanyId(companyId);
+            }
+        });
+        
+        // 데이터 유효성 검사
+        List<GriDataItemDto> validItems = griDataItems.stream()
+            .filter(item -> item.getStandardCode() != null && !item.getStandardCode().isEmpty() && 
+                          item.getDisclosureCode() != null && !item.getDisclosureCode().isEmpty())
+            .collect(Collectors.toList());
+        
+        if (validItems.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // 데이터 저장
+        List<GriDataItemDto> savedItems = new ArrayList<>();
+        for (GriDataItemDto item : validItems) {
+            try {
+                GriDataItemDto savedItem = saveGriDataItem(item);
+                savedItems.add(savedItem);
+            } catch (Exception e) {
+                log.error("GRI 데이터 저장 오류: {}", e.getMessage());
+            }
+        }
+        
+        return savedItems;
+    }
+
+    /**
+     * 특정 회사의 특정 GRI 카테고리 데이터를 저장
+     *
+     * @param companyId 회사 ID
+     * @param categoryId 카테고리 ID (예: GRI-302-1)
+     * @param categoryData 저장할 GRI 데이터
+     * @return 저장된 GRI 데이터 항목
+     */
+    @Transactional
+    public GriDataItemDto saveSingleCategory(Long companyId, String categoryId, GriDataItemDto categoryData) {
+        log.debug("회사 ID {}의 카테고리 {} 데이터 저장 요청", companyId, categoryId);
+        
+        // 카테고리 ID 형식 검증 및 파싱
+        String[] parts = categoryId.split("-");
+        if (parts.length < 2) {
+            log.warn("잘못된 카테고리 ID 형식: {}", categoryId);
+            throw new IllegalArgumentException("잘못된 카테고리 ID 형식: " + categoryId);
+        }
+        
+        // 카테고리 데이터 설정
+        categoryData.setCompanyId(companyId);
+        categoryData.setStandardCode(parts[0]);
+        categoryData.setDisclosureCode(parts[1]);
+        
+        // 기존 데이터 조회 (업데이트인 경우)
+        Optional<GriDataItemDto> existingData = findByCompanyIdAndStandardCodeAndDisclosureCode(
+            companyId, parts[0], parts[1]);
+        
+        if (existingData.isPresent()) {
+            categoryData.setId(existingData.get().getId());
+        }
+        
+        // 데이터 저장
+        try {
+            return saveGriDataItem(categoryData);
+        } catch (Exception e) {
+            log.error("카테고리 {} 데이터 저장 오류: {}", categoryId, e.getMessage());
+            throw new RuntimeException("카테고리 데이터 저장 중 오류 발생", e);
+        }
+    }
 } 

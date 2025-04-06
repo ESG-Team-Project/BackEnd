@@ -17,8 +17,9 @@ import java.util.Collections;
 @Entity
 @Table(name = "users")
 @Getter
-@Setter
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA에 필요한 기본 생성자를 protected로 제한
+@AllArgsConstructor
 public class User implements UserDetails {
 
     @Id
@@ -33,6 +34,7 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private String name;
+    
     @Column
     private String phoneNumber; // 개인 전화번호
 
@@ -51,35 +53,20 @@ public class User implements UserDetails {
     private LocalDateTime updatedAt;
     
     @Column(name = "account_non_expired", columnDefinition = "boolean default true")
+    @Builder.Default
     private boolean accountNonExpired = true;
     
     @Column(name = "account_non_locked", columnDefinition = "boolean default true")
+    @Builder.Default
     private boolean accountNonLocked = true;
     
     @Column(name = "credentials_non_expired", columnDefinition = "boolean default true")
+    @Builder.Default
     private boolean credentialsNonExpired = true;
     
     @Column(columnDefinition = "boolean default true")
+    @Builder.Default
     private boolean enabled = true;
-
-    /**
-     * User 엔티티 생성을 위한 빌더 패턴 구현
-     */
-    @Builder
-    public User(Long id, String email, String password, String name, String phoneNumber, Company company,
-                boolean accountNonExpired, boolean accountNonLocked, 
-                boolean credentialsNonExpired, boolean enabled) {
-        this.id = id;
-        this.email = email;
-        this.password = password;
-        this.name = name;
-        this.phoneNumber = phoneNumber;
-        this.company = company;
-        this.accountNonExpired = accountNonExpired;
-        this.accountNonLocked = accountNonLocked;
-        this.credentialsNonExpired = credentialsNonExpired;
-        this.enabled = enabled;
-    }
 
     /**
      * 엔티티 생성 시 호출되어 생성 시간과 수정 시간을 현재 시간으로 설정
@@ -96,6 +83,28 @@ public class User implements UserDetails {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * 비밀번호 업데이트 메서드
+     * 
+     * @param newPassword 새로운 비밀번호
+     * @return 현재 User 인스턴스 (메서드 체이닝용)
+     */
+    public User updatePassword(String newPassword) {
+        this.password = newPassword;
+        return this;
+    }
+    
+    /**
+     * 회사 설정 메서드
+     * 
+     * @param company 설정할 회사
+     * @return 현재 User 인스턴스 (메서드 체이닝용)
+     */
+    public User setCompany(Company company) {
+        this.company = company;
+        return this;
     }
     
     /**
