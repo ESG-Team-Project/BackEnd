@@ -9,13 +9,20 @@ import dev.gyeoul.esginsightboard.repository.UserRepository;
 import dev.gyeoul.esginsightboard.util.JwtTokenUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 
 /**
@@ -24,13 +31,46 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
+@Lazy
 @RequiredArgsConstructor
-public class UserService {
+public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
     private final JwtTokenUtil jwtTokenUtil;
     private final PasswordEncoder passwordEncoder;
+
+    /**
+     * UserDetailsService 인터페이스 구현 메서드
+     * 사용자 이름(이메일)으로 사용자 정보를 조회합니다.
+     *
+     * @param username 사용자 이름(이메일)
+     * @return UserDetails 객체
+     * @throws UsernameNotFoundException 사용자를 찾을 수 없는 경우 발생
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + username));
+                
+        return new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPassword(),
+                true, true, true, true,
+                getAuthorities("ROLE_USER")
+        );
+    }
+    
+    /**
+     * 사용자 권한을 생성하는 메서드
+     * 
+     * @param role 권한 역할
+     * @return 권한 컬렉션
+     */
+    private Collection<? extends GrantedAuthority> getAuthorities(String role) {
+        return Collections.singletonList(new SimpleGrantedAuthority(role));
+    }
 
     /**
      * 회원가입 처리
