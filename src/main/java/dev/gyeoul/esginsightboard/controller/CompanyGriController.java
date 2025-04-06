@@ -1,6 +1,8 @@
 package dev.gyeoul.esginsightboard.controller;
 
 import dev.gyeoul.esginsightboard.dto.GriDataItemDto;
+import dev.gyeoul.esginsightboard.dto.GriDataSearchCriteria;
+import dev.gyeoul.esginsightboard.dto.PageResponse;
 import dev.gyeoul.esginsightboard.service.GriDataItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -11,6 +13,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +34,7 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 @Tag(name = "회사별 GRI 데이터", description = "회사별 GRI 데이터 관리 API")
 @SecurityRequirement(name = "bearerAuth")
+@Slf4j
 public class CompanyGriController {
     
     private final GriDataItemService griDataItemService;
@@ -94,7 +101,89 @@ public class CompanyGriController {
             @PathVariable String category,
             @Parameter(description = "업데이트할 GRI 데이터 맵", required = true) 
             @RequestBody Map<String, GriDataItemDto> griData) {
-        Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompanyByCategory(companyId, category, griData);
+        
+        log.debug("회사 ID {}의 {} 카테고리 GRI 데이터 업데이트 요청. 항목 수: {}", companyId, category, griData.size());
+        
+        // 카테고리별 필터링
+        Map<String, GriDataItemDto> filteredData = griData.entrySet().stream()
+                .filter(entry -> {
+                    GriDataItemDto dto = entry.getValue();
+                    // 카테고리 일치 여부 확인 (E, S, G 중 하나)
+                    return matchesCategory(dto.getCategory(), category);
+                })
+                .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        
+        Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompany(companyId, filteredData);
         return ResponseEntity.ok(updatedData);
+    }
+    
+    /**
+     * 카테고리 문자와 실제 카테고리의 일치 여부 확인
+     */
+    private boolean matchesCategory(String fullCategory, String categoryChar) {
+        if (fullCategory == null || categoryChar == null) {
+            return false;
+        }
+        
+        switch (categoryChar.toUpperCase()) {
+            case "E":
+                return fullCategory.startsWith("Environment");
+            case "S":
+                return fullCategory.startsWith("Social");
+            case "G":
+                return fullCategory.startsWith("Governance");
+            default:
+                return false;
+        }
+    }
+    
+    /**
+     * 회사별 GRI 데이터 페이지네이션 조회
+     *
+     * @param companyId 회사 ID
+     * @param page 페이지 번호
+     * @param size 페이지 크기
+     * @param sort 정렬 기준
+     * @return 페이지네이션이 적용된 GRI 데이터 항목 목록
+     */
+    @Operation(summary = "회사별 페이지네이션 GRI 데이터 조회", 
+              description = "특정 회사의 GRI 데이터 항목을 페이지 단위로 조회합니다.")
+    @ApiResponse(responseCode = "200", description = "페이지네이션이 적용된 GRI 데이터 항목 목록을 반환합니다.")
+    @GetMapping("/company/{companyId}/gri/paged")
+    public ResponseEntity<PageResponse<GriDataItemDto>> getCompanyGriDataPaginated(
+            @Parameter(description = "회사 ID", required = true) 
+            @PathVariable Long companyId,
+            @Parameter(description = "페이지 번호(0부터 시작)", example = "0") 
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "페이지 크기", example = "10") 
+            @RequestParam(defaultValue = "10") int size,
+            @Parameter(description = "정렬 기준 (형식: 속성,정렬방향) 예: disclosureCode,asc", example = "disclosureCode,asc") 
+            @RequestParam(required = false) String sort) {
+        
+        log.debug("회사 ID {}의 페이지네이션 GRI 데이터 조회 요청: 페이지={}, 크기={}, 정렬={}", companyId, page, size, sort);
+        
+        // 정렬 설정 처리
+        Sort sortObj = Sort.by("id");
+        if (sort != null && !sort.isEmpty()) {
+            String[] parts = sort.split(",");
+            String property = parts[0];
+            
+            if (parts.length > 1 && "desc".equalsIgnoreCase(parts[1])) {
+                sortObj = Sort.by(Sort.Direction.DESC, property);
+            } else {
+                sortObj = Sort.by(Sort.Direction.ASC, property);
+            }
+        }
+        
+        Pageable pageable = PageRequest.of(page, size, sortObj);
+        
+        // 회사별 GRI 데이터 페이지네이션 조회
+        GriDataSearchCriteria criteria = GriDataSearchCriteria.builder()
+                .companyId(companyId)
+                .build();
+        
+        PageResponse<GriDataItemDto> result = griDataItemService.findByCriteria(criteria, pageable);
+        
+        return ResponseEntity.ok(result);
     }
 } 

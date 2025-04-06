@@ -1,5 +1,6 @@
 package dev.gyeoul.esginsightboard.service;
 
+import dev.gyeoul.esginsightboard.dto.AuditLogDto;
 import dev.gyeoul.esginsightboard.dto.GriDataItemDto;
 import dev.gyeoul.esginsightboard.dto.GriDataSearchCriteria;
 import dev.gyeoul.esginsightboard.dto.PageResponse;
@@ -15,118 +16,390 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
-import jakarta.persistence.criteria.Predicate;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class GriDataItemService {
 
     private final GriDataItemRepository griDataItemRepository;
     private final CompanyRepository companyRepository;
+    private final GriDataItemMapper griDataItemMapper;
+    private final AuditLogService auditLogService;
     
-    // 모든 GRI 데이터 항목 조회 (N+1 문제 해결)
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    /**
+     * 시계열 데이터 처리
+     */
+    private void processTimeSeriesData(GriDataItemDto dto) {
+        // 1. DTO에 시계열 데이터가 직접 제공된 경우
+        if (dto.getTimeSeriesData() != null && !dto.getTimeSeriesData().isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                // JSON 문자열로 변환하여 disclosureValue에 저장
+                dto.setDisclosureValue(mapper.writeValueAsString(dto.getTimeSeriesData()));
+                
+                // 최신 값 또는 평균값을 numericValue에 설정
+                TimeSeriesDataPointDto latestPoint = dto.getTimeSeriesData().stream()
+                    .max(Comparator.comparing(TimeSeriesDataPointDto::getYear))
+                    .orElse(null);
+                
+                if (latestPoint != null) {
+                    dto.setNumericValue(latestPoint.getValue());
+                    dto.setUnit(latestPoint.getUnit());
+                }
+            } catch (Exception e) {
+                log.error("시계열 데이터 처리 오류: {}", e.getMessage());
+            }
+        } 
+        // 2. disclosureValue에 JSON 형태로 시계열 데이터가 제공된 경우
+        else if (dto.getDisclosureValue() != null && 
+                 dto.getDisclosureValue().startsWith("[") && 
+                 dto.getDisclosureValue().endsWith("]")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                List<TimeSeriesDataPointDto> timeSeriesData = mapper.readValue(
+                    dto.getDisclosureValue(),
+                    new TypeReference<List<TimeSeriesDataPointDto>>() {}
+                );
+                dto.setTimeSeriesData(timeSeriesData);
+                
+                // 최신 값을 numericValue로 설정
+                if (!timeSeriesData.isEmpty()) {
+                    TimeSeriesDataPointDto latestPoint = timeSeriesData.stream()
+                        .max(Comparator.comparing(TimeSeriesDataPointDto::getYear))
+                        .orElse(null);
+                    
+                    if (latestPoint != null) {
+                        dto.setNumericValue(latestPoint.getValue());
+                        dto.setUnit(latestPoint.getUnit());
+                    }
+                }
+            } catch (Exception e) {
+                log.error("시계열 데이터 파싱 오류: {}", e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * 감사 로그 생성 메소드
+     */
+    private void createAuditLog(GriDataItemDto dto, String action) {
+        try {
+            // 1. 현재 인증된 사용자 정보 가져오기
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String username = auth != null ? auth.getName() : "system";
+            
+            // 2. 클라이언트 IP 주소 가져오기
+            String ipAddress = null;
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes) {
+                HttpServletRequest request = ((ServletRequestAttributes)requestAttributes).getRequest();
+                ipAddress = request.getRemoteAddr();
+            }
+            
+            // 3. 변경 내용 상세 정보 구성
+            String details;
+            if ("CREATE".equals(action) || "UPDATE".equals(action)) {
+                details = String.format("GRI-%s-%s: '%s' (%s %s)", 
+                    dto.getStandardCode(), 
+                    dto.getDisclosureCode(),
+                    StringUtils.hasText(dto.getDisclosureValue()) ? 
+                        StringUtils.truncate(dto.getDisclosureValue(), 100) : "",
+                    dto.getNumericValue() != null ? dto.getNumericValue() : "",
+                    dto.getUnit() != null ? dto.getUnit() : "");
+            } else {
+                details = String.format("GRI-%s-%s 삭제됨", 
+                    dto.getStandardCode(), 
+                    dto.getDisclosureCode());
+            }
+            
+            // 4. 감사 로그 생성
+            AuditLogDto auditLog = AuditLogDto.builder()
+                .entityType("GriDataItem")
+                .entityId(dto.getId() != null ? dto.getId().toString() : "0")
+                .action(action)
+                .details(details)
+                .username(username)
+                .ipAddress(ipAddress)
+                .build();
+            
+            auditLogService.saveAuditLog(auditLog);
+        } catch (Exception e) {
+            log.error("감사 로그 생성 중 오류 발생: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 모든 GRI 데이터 항목 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getAllGriDataItems() {
         log.debug("모든 GRI 데이터 항목을 조회합니다.");
-        return griDataItemRepository.findAll().stream()
-                .map(GriDataItemDto::fromEntity)
+        List<GriDataItem> griDataItems = griDataItemRepository.findAll();
+        return griDataItems.stream()
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
     
-    // 페이지네이션을 적용한 모든 GRI 데이터 항목 조회
+    /**
+     * 조회 시 시계열 데이터 처리
+     */
+    private GriDataItemDto processTimeSeriesDataForRead(GriDataItemDto dto) {
+        if (dto.getDisclosureValue() != null && 
+            dto.getDisclosureValue().startsWith("[") && 
+            dto.getDisclosureValue().endsWith("]")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                List<TimeSeriesDataPointDto> timeSeriesData = mapper.readValue(
+                    dto.getDisclosureValue(), 
+                    new TypeReference<List<TimeSeriesDataPointDto>>() {}
+                );
+                dto.setTimeSeriesData(timeSeriesData);
+            } catch (Exception e) {
+                log.error("시계열 데이터 읽기 오류: {}", e.getMessage());
+            }
+        }
+        return dto;
+    }
+
+    /**
+     * ID로 GRI 데이터 항목 조회
+     */
+    @Transactional(readOnly = true)
+    public Optional<GriDataItemDto> getGriDataItemById(Long id) {
+        log.debug("ID가 {}인 GRI 데이터 항목을 조회합니다.", id);
+        return griDataItemRepository.findById(id)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead);
+    }
+
+    /**
+     * 회사, 표준 코드, 공시 코드로 GRI 데이터 항목 조회
+     */
+    @Transactional(readOnly = true)
+    public Optional<GriDataItemDto> findByCompanyIdAndStandardCodeAndDisclosureCode(
+            Long companyId, String standardCode, String disclosureCode) {
+        
+        log.debug("회사 ID {}, 표준 코드 {}, 공시 코드 {}인 GRI 데이터 항목을 조회합니다.", 
+                 companyId, standardCode, disclosureCode);
+        
+        return griDataItemRepository
+            .findByCompanyIdAndStandardCodeAndDisclosureCode(companyId, standardCode, disclosureCode)
+            .map(griDataItemMapper::toDto)
+            .map(this::processTimeSeriesDataForRead);
+    }
+
+    /**
+     * GRI 데이터 항목 저장
+     */
+    public GriDataItemDto saveGriDataItem(GriDataItemDto griDataItemDto) {
+        log.debug("GRI 데이터 항목을 저장합니다. 공시 코드: {}, 회사 ID: {}", 
+                 griDataItemDto.getDisclosureCode(), griDataItemDto.getCompanyId());
+        
+        boolean isUpdate = griDataItemDto.getId() != null;
+        
+        // 시계열 데이터 처리
+        processTimeSeriesData(griDataItemDto);
+        
+        // 데이터 저장
+        GriDataItem entity = griDataItemMapper.toEntity(griDataItemDto);
+        GriDataItem savedEntity = griDataItemRepository.save(entity);
+        GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
+        
+        // 시계열 데이터 다시 처리 (저장된 entity에서)
+        savedDto = processTimeSeriesDataForRead(savedDto);
+        
+        // 감사 로그 생성
+        createAuditLog(savedDto, isUpdate ? "UPDATE" : "CREATE");
+        
+        return savedDto;
+    }
+
+    /**
+     * 여러 GRI 데이터 항목 저장
+     */
+    public List<GriDataItemDto> saveGriDataItems(List<GriDataItemDto> griDataItemDtos) {
+        log.debug("{}개의 GRI 데이터 항목을 저장합니다.", griDataItemDtos.size());
+        return griDataItemDtos.stream()
+                .map(this::saveGriDataItem)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * GRI 데이터 항목 업데이트
+     */
+    public GriDataItemDto updateGriDataItem(Long id, GriDataItemDto griDataItemDto) {
+        log.debug("ID가 {}인 GRI 데이터 항목을 업데이트합니다.", id);
+        
+        // 기존 데이터 확인
+        GriDataItem existingItem = griDataItemRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 ID의 GRI 데이터 항목이 없습니다: " + id));
+        
+        // ID 설정
+        griDataItemDto.setId(id);
+        
+        // 시계열 데이터 처리
+        processTimeSeriesData(griDataItemDto);
+        
+        // 데이터 업데이트
+        GriDataItem updatedEntity = griDataItemMapper.toEntity(griDataItemDto);
+        GriDataItem savedEntity = griDataItemRepository.save(updatedEntity);
+        GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
+        
+        // 시계열 데이터 다시 처리
+        savedDto = processTimeSeriesDataForRead(savedDto);
+        
+        // 감사 로그 생성
+        createAuditLog(savedDto, "UPDATE");
+        
+        return savedDto;
+    }
+
+    /**
+     * GRI 데이터 항목 삭제
+     */
+    public void deleteGriDataItem(Long id) {
+        log.debug("ID가 {}인 GRI 데이터 항목을 삭제합니다.", id);
+        
+        // 삭제 전 데이터 조회 (감사 로그용)
+        Optional<GriDataItemDto> dtoOpt = getGriDataItemById(id);
+        
+        // 데이터 삭제
+        griDataItemRepository.deleteById(id);
+        
+        // 감사 로그 생성
+        dtoOpt.ifPresent(dto -> createAuditLog(dto, "DELETE"));
+    }
+
+    /**
+     * 페이지네이션을 적용한 모든 GRI 데이터 항목 조회
+     */
     @Transactional(readOnly = true)
     public PageResponse<GriDataItemDto> getPaginatedGriDataItems(Pageable pageable) {
         log.debug("페이지별 GRI 데이터 항목을 조회합니다. 페이지: {}, 크기: {}", pageable.getPageNumber(), pageable.getPageSize());
         Page<GriDataItemDto> result = griDataItemRepository.findAll(pageable)
-                .map(GriDataItemDto::fromEntity);
+                .map(griDataItemMapper::toDto);
         return PageResponse.from(result);
     }
-    
-    // ID로 GRI 데이터 항목 조회 (시계열 데이터 포함)
-    @Transactional(readOnly = true)
-    public Optional<GriDataItemDto> getGriDataItemById(Long id) {
-        log.debug("ID가 {}인 GRI 데이터 항목을 조회합니다.", id);
-        return griDataItemRepository.findWithAllDataById(id)
-                .map(GriDataItemDto::fromEntity);
-    }
-    
-    // 카테고리(E,S,G)별 데이터 조회
+
+    /**
+     * 카테고리(E,S,G)별 데이터 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByCategory(String category) {
         log.debug("카테고리 {}에 속하는 GRI 데이터 항목을 조회합니다.", category);
         return griDataItemRepository.findByCategory(category).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 특정 GRI 표준 코드에 대한 데이터 조회
+
+    /**
+     * 특정 GRI 표준 코드에 대한 데이터 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByStandardCode(String standardCode) {
         log.debug("표준 코드 {}에 속하는 GRI 데이터 항목을 조회합니다.", standardCode);
         return griDataItemRepository.findByStandardCode(standardCode).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 특정 공시 코드에 대한 데이터 조회
+
+    /**
+     * 특정 공시 코드에 대한 데이터 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByDisclosureCode(String disclosureCode) {
         log.debug("공시 코드 {}에 속하는 GRI 데이터 항목을 조회합니다.", disclosureCode);
         return griDataItemRepository.findByDisclosureCode(disclosureCode).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 특정 보고 기간 내의 데이터 조회
+
+    /**
+     * 특정 보고 기간 내의 데이터 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByReportingPeriod(LocalDate startDate, LocalDate endDate) {
         log.debug("보고 기간 {} ~ {} 내의 GRI 데이터 항목을 조회합니다.", startDate, endDate);
         return griDataItemRepository.findItemsByReportingPeriod(endDate, startDate).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 검증 상태별 데이터 조회
+
+    /**
+     * 검증 상태별 데이터 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByVerificationStatus(String verificationStatus) {
         log.debug("검증 상태가 {}인 GRI 데이터 항목을 조회합니다.", verificationStatus);
         return griDataItemRepository.findByVerificationStatus(verificationStatus).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 특정 회사의 모든 GRI 데이터 항목 조회
+
+    /**
+     * 특정 회사의 모든 GRI 데이터 항목 조회
+     */
     @Transactional(readOnly = true)
     public List<GriDataItemDto> getGriDataItemsByCompanyId(Long companyId) {
         log.debug("회사 ID {}에 속하는 GRI 데이터 항목을 조회합니다.", companyId);
         return griDataItemRepository.findByCompanyId(companyId).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
-    
-    // 검색 조건 기반 GRI 데이터 항목 필터링
+
+    /**
+     * 검색 조건 기반 GRI 데이터 항목 필터링
+     */
     @Transactional(readOnly = true)
     public PageResponse<GriDataItemDto> findByCriteria(GriDataSearchCriteria criteria, Pageable pageable) {
         log.debug("검색 조건 기반으로 GRI 데이터 항목을 필터링합니다. 조건: {}", criteria);
         Page<GriDataItemDto> result = griDataItemRepository.findAll(createSpecification(criteria), pageable)
-                .map(GriDataItemDto::fromEntity);
+                .map(griDataItemMapper::toDto);
         return PageResponse.from(result);
     }
-    
-    // 검색 조건에 맞는 Specification 생성
+
+    /**
+     * 검색 조건에 맞는 Specification 생성
+     */
     private Specification<GriDataItem> createSpecification(GriDataSearchCriteria criteria) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -172,175 +445,6 @@ public class GriDataItemService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
-    
-    // GRI 데이터 저장 (회사 연결) - 데이터 검증 추가
-    @Transactional
-    public GriDataItemDto saveGriDataItem(GriDataItemDto dto, Long companyId) {
-        log.debug("GRI 데이터 항목 저장을 시작합니다. 공시 코드: {}, 회사 ID: {}", dto.getDisclosureCode(), companyId);
-        
-        // 데이터 검증
-        validateGriDataItem(dto, companyId);
-        
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found with id: " + companyId));
-        
-        // DTO에서 엔티티 변환 (company 필드는 나중에 설정)
-        GriDataItem griDataItem = GriDataItem.builder()
-                .standardCode(dto.getStandardCode())
-                .disclosureCode(dto.getDisclosureCode())
-                .disclosureTitle(dto.getDisclosureTitle())
-                .disclosureValue(dto.getDisclosureValue())
-                .description(dto.getDescription())
-                .numericValue(dto.getNumericValue())
-                .unit(dto.getUnit())
-                .reportingPeriodStart(dto.getReportingPeriodStart())
-                .reportingPeriodEnd(dto.getReportingPeriodEnd())
-                .verificationStatus(dto.getVerificationStatus())
-                .verificationProvider(dto.getVerificationProvider())
-                .category(dto.getCategory())
-                .company(company) // 회사 연결
-                .build();
-        
-        // 회사와 GRI 데이터 간의 양방향 관계 설정
-        company.addGriDataItem(griDataItem);
-        
-        // 저장
-        GriDataItem savedItem = griDataItemRepository.save(griDataItem);
-        log.info("GRI 데이터 항목 저장 완료. ID: {}, 공시 코드: {}", savedItem.getId(), savedItem.getDisclosureCode());
-        
-        return GriDataItemDto.fromEntity(savedItem);
-    }
-    
-    // GRI 데이터 검증
-    private void validateGriDataItem(GriDataItemDto dto, Long companyId) {
-        // 필수 필드 검증
-        if (!StringUtils.hasText(dto.getStandardCode())) {
-            throw new IllegalArgumentException("표준 코드는 필수 항목입니다.");
-        }
-        
-        if (!StringUtils.hasText(dto.getDisclosureCode())) {
-            throw new IllegalArgumentException("공시 코드는 필수 항목입니다.");
-        }
-        
-        if (!StringUtils.hasText(dto.getDisclosureTitle())) {
-            throw new IllegalArgumentException("공시 제목은 필수 항목입니다.");
-        }
-        
-        if (dto.getReportingPeriodStart() == null) {
-            throw new IllegalArgumentException("보고 기간 시작일은 필수 항목입니다.");
-        }
-        
-        if (dto.getReportingPeriodEnd() == null) {
-            throw new IllegalArgumentException("보고 기간 종료일은 필수 항목입니다.");
-        }
-        
-        // 보고 기간 검증
-        if (dto.getReportingPeriodEnd().isBefore(dto.getReportingPeriodStart())) {
-            throw new IllegalArgumentException("보고 기간 종료일은 시작일 이후여야 합니다.");
-        }
-        
-        // 중복 검사
-        if (dto.getId() == null && companyId != null && // 신규 저장 시에만 중복 검사
-            griDataItemRepository.existsByCompanyIdAndDisclosureCodeAndReportingPeriod(
-                companyId, dto.getDisclosureCode(), 
-                dto.getReportingPeriodStart(), dto.getReportingPeriodEnd())) {
-            throw new IllegalArgumentException(
-                    "해당 회사에 동일한 보고 기간의 " + dto.getDisclosureCode() + " 데이터가 이미 존재합니다.");
-        }
-        
-        // 카테고리 유효성 검사
-        String category = dto.getCategory();
-        if (!StringUtils.hasText(category) || 
-            !List.of("Environmental", "Social", "Governance", "Economic", "일반").contains(category)) {
-            throw new IllegalArgumentException("유효하지 않은 카테고리입니다: " + category);
-        }
-    }
-    
-    // GRI 데이터 일괄 저장 (같은 회사에 속하는 여러 데이터) - 성능 최적화 및 로깅 추가
-    @Transactional
-    public List<GriDataItemDto> saveAllGriDataItems(List<GriDataItemDto> dtos, Long companyId) {
-        log.debug("GRI 데이터 항목 일괄 저장을 시작합니다. 항목 수: {}, 회사 ID: {}", dtos.size(), companyId);
-        
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found with id: " + companyId));
-        
-        // 모든 항목 검증
-        for (GriDataItemDto dto : dtos) {
-            validateGriDataItem(dto, companyId);
-        }
-        
-        List<GriDataItem> items = dtos.stream()
-                .map(dto -> {
-                    GriDataItem item = GriDataItem.builder()
-                            .standardCode(dto.getStandardCode())
-                            .disclosureCode(dto.getDisclosureCode())
-                            .disclosureTitle(dto.getDisclosureTitle())
-                            .disclosureValue(dto.getDisclosureValue())
-                            .description(dto.getDescription())
-                            .numericValue(dto.getNumericValue())
-                            .unit(dto.getUnit())
-                            .reportingPeriodStart(dto.getReportingPeriodStart())
-                            .reportingPeriodEnd(dto.getReportingPeriodEnd())
-                            .verificationStatus(dto.getVerificationStatus())
-                            .verificationProvider(dto.getVerificationProvider())
-                            .category(dto.getCategory())
-                            .company(company)
-                            .build();
-                    
-                    company.addGriDataItem(item);
-                    return item;
-                })
-                .collect(Collectors.toList());
-        
-        List<GriDataItem> savedItems = griDataItemRepository.saveAll(items);
-        log.info("GRI 데이터 항목 일괄 저장 완료. 저장된 항목 수: {}", savedItems.size());
-        
-        return savedItems.stream()
-                .map(GriDataItemDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-    
-    // GRI 데이터 항목 수정 - 로깅 추가
-    @Transactional
-    public Optional<GriDataItemDto> updateGriDataItem(Long id, GriDataItemDto griDataItemDto) {
-        log.debug("ID가 {}인 GRI 데이터 항목 수정을 시작합니다.", id);
-        
-        Optional<GriDataItem> existingItemOpt = griDataItemRepository.findById(id);
-        
-        if (existingItemOpt.isEmpty()) {
-            log.warn("ID가 {}인 GRI 데이터 항목이 존재하지 않습니다.", id);
-            return Optional.empty();
-        }
-        
-        GriDataItem existingItem = existingItemOpt.get();
-        
-        // 데이터 검증
-        griDataItemDto.setId(id);
-        validateGriDataItem(griDataItemDto, existingItem.getCompany().getId());
-        
-        // 엔티티 업데이트 - 회사 관계 유지
-        GriDataItem updatedItem = griDataItemDto.toEntity();
-        updatedItem.setCompany(existingItem.getCompany());
-        
-        GriDataItem savedItem = griDataItemRepository.save(updatedItem);
-        log.info("ID가 {}인 GRI 데이터 항목 수정 완료.", id);
-        
-        return Optional.of(GriDataItemDto.fromEntity(savedItem));
-    }
-    
-    // GRI 데이터 항목 삭제 - 로깅 추가
-    @Transactional
-    public void deleteGriDataItem(Long id) {
-        log.debug("ID가 {}인 GRI 데이터 항목 삭제를 시작합니다.", id);
-        
-        if (!griDataItemRepository.existsById(id)) {
-            log.warn("ID가 {}인 GRI 데이터 항목이 존재하지 않습니다.", id);
-            throw new IllegalArgumentException("ID가 " + id + "인 GRI 데이터 항목이 존재하지 않습니다.");
-        }
-        
-        griDataItemRepository.deleteById(id);
-        log.info("ID가 {}인 GRI 데이터 항목 삭제 완료.", id);
-    }
 
     /**
      * 특정 회사의 모든 GRI 데이터 항목을 Map 형태로 조회
@@ -358,87 +462,51 @@ public class GriDataItemService {
         Map<String, GriDataItemDto> griDataMap = new HashMap<>();
         
         for (GriDataItem item : griDataItems) {
-            griDataMap.put(item.getDisclosureCode(), GriDataItemDto.fromEntity(item));
+            griDataMap.put(item.getDisclosureCode(), griDataItemMapper.toDto(item));
         }
         
         return griDataMap;
     }
     
     /**
-     * 특정 회사의 모든 GRI 데이터 항목을 Map 형태로 업데이트
-     * <p>
-     * 클라이언트에서 수정한 GRI 데이터 항목들을 일괄 업데이트합니다.
-     * </p>
-     *
-     * @param companyId 회사 ID
-     * @param griDataMap 업데이트할 GRI 데이터 항목 Map
-     * @return 업데이트된 GRI 데이터 항목 Map
+     * 회사별 GRI 데이터 맵 업데이트 시 감사 로그 추가
      */
-    @Transactional
-    public Map<String, GriDataItemDto> updateGriDataForCompany(Long companyId, Map<String, GriDataItemDto> griDataMap) {
-        log.debug("회사 ID {}의 GRI 데이터 항목을 Map 형태로 업데이트합니다. 항목 수: {}", companyId, griDataMap.size());
+    public Map<String, GriDataItemDto> updateGriDataForCompany(
+            Long companyId, Map<String, GriDataItemDto> griDataMap) {
         
-        // 회사 존재 확인
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("회사 ID " + companyId + "를 찾을 수 없습니다."));
+        log.debug("회사 ID {}의 GRI 데이터 맵을 업데이트합니다. 항목 수: {}", companyId, griDataMap.size());
         
-        // 현재 회사의 GRI 데이터 항목 조회
-        List<GriDataItem> existingItems = griDataItemRepository.findByCompanyId(companyId);
-        Map<String, GriDataItem> existingItemMap = new HashMap<>();
-        for (GriDataItem item : existingItems) {
-            existingItemMap.put(item.getDisclosureCode(), item);
-        }
+        // 기존 데이터 조회
+        Map<String, GriDataItemDto> existingData = getGriDataMapByCompanyId(companyId);
         
-        // 업데이트할 항목 처리
-        Map<String, GriDataItemDto> updatedMap = new HashMap<>();
+        // 각 항목 처리 및 감사 로그 생성
+        Map<String, GriDataItemDto> result = new HashMap<>();
+        
         for (Map.Entry<String, GriDataItemDto> entry : griDataMap.entrySet()) {
-            String disclosureCode = entry.getKey();
-            GriDataItemDto dto = entry.getValue();
+            String key = entry.getKey();
+            GriDataItemDto newData = entry.getValue();
             
-            // 데이터 검증
-            validateGriDataItem(dto, companyId);
+            // 회사 ID 설정
+            newData.setCompanyId(companyId);
             
-            GriDataItem item;
-            if (existingItemMap.containsKey(disclosureCode)) {
-                // 기존 항목 업데이트
-                item = existingItemMap.get(disclosureCode);
-                item.setStandardCode(dto.getStandardCode());
-                item.setDisclosureTitle(dto.getDisclosureTitle());
-                item.setDisclosureValue(dto.getDisclosureValue());
-                item.setDescription(dto.getDescription());
-                item.setNumericValue(dto.getNumericValue());
-                item.setUnit(dto.getUnit());
-                item.setReportingPeriodStart(dto.getReportingPeriodStart());
-                item.setReportingPeriodEnd(dto.getReportingPeriodEnd());
-                item.setVerificationStatus(dto.getVerificationStatus());
-                item.setVerificationProvider(dto.getVerificationProvider());
-                item.setCategory(dto.getCategory());
-            } else {
-                // 새 항목 생성
-                item = GriDataItem.builder()
-                        .standardCode(dto.getStandardCode())
-                        .disclosureCode(disclosureCode)
-                        .disclosureTitle(dto.getDisclosureTitle())
-                        .disclosureValue(dto.getDisclosureValue())
-                        .description(dto.getDescription())
-                        .numericValue(dto.getNumericValue())
-                        .unit(dto.getUnit())
-                        .reportingPeriodStart(dto.getReportingPeriodStart())
-                        .reportingPeriodEnd(dto.getReportingPeriodEnd())
-                        .verificationStatus(dto.getVerificationStatus())
-                        .verificationProvider(dto.getVerificationProvider())
-                        .category(dto.getCategory())
-                        .company(company)
-                        .build();
-                company.addGriDataItem(item);
+            // 키 파싱
+            String[] parts = key.split("-");
+            if (parts.length >= 2) {
+                newData.setStandardCode(parts[0]);
+                newData.setDisclosureCode(parts[1]);
+                
+                // 기존 ID 설정 (있는 경우)
+                if (existingData.containsKey(key)) {
+                    newData.setId(existingData.get(key).getId());
+                }
+                
+                // 데이터 저장
+                GriDataItemDto savedDto = saveGriDataItem(newData);
+                result.put(key, savedDto);
             }
-            
-            GriDataItem savedItem = griDataItemRepository.save(item);
-            updatedMap.put(disclosureCode, GriDataItemDto.fromEntity(savedItem));
         }
         
-        log.info("회사 ID {}의 GRI 데이터 항목 업데이트 완료. 업데이트된 항목 수: {}", companyId, updatedMap.size());
-        return updatedMap;
+        return result;
     }
     
     /**
@@ -452,7 +520,8 @@ public class GriDataItemService {
     public List<GriDataItemDto> getGriDataItemsByIds(List<Long> ids) {
         log.debug("{} 개의 ID에 해당하는 GRI 데이터 항목을 조회합니다.", ids.size());
         return griDataItemRepository.findAllWithCompanyByIdIn(ids).stream()
-                .map(GriDataItemDto::fromEntity)
+                .map(griDataItemMapper::toDto)
+                .map(this::processTimeSeriesDataForRead)
                 .collect(Collectors.toList());
     }
 } 

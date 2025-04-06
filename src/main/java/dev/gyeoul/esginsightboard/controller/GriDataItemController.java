@@ -26,6 +26,10 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.ArrayList;
 
 /**
  * GRI 데이터 항목 관리 API 컨트롤러
@@ -248,17 +252,16 @@ public class GriDataItemController {
     }
 
     @Operation(summary = "GRI 데이터 항목 생성", description = "새로운 GRI 데이터 항목을 생성합니다.")
-    @ApiResponse(responseCode = "201", description = "GRI 데이터 항목이 성공적으로 생성되었습니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "GRI 데이터 항목이 성공적으로 생성되었습니다."),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터입니다.", content = @Content)
+    })
     @PostMapping
     public ResponseEntity<GriDataItemDto> createGriDataItem(
-            @Parameter(description = "생성할 GRI 데이터 항목", required = true, 
-                       schema = @Schema(implementation = GriDataItemDto.class))
-            @RequestBody GriDataItemDto griDataItemDto,
-            @Parameter(description = "회사 ID", required = true)
-            @RequestParam Long companyId) {
-        log.debug("GRI 데이터 항목 생성 요청을 처리합니다. 공시 코드: {}, 회사 ID: {}", 
-                  griDataItemDto.getDisclosureCode(), companyId);
-        GriDataItemDto createdGriDataItem = griDataItemService.saveGriDataItem(griDataItemDto, companyId);
+            @Parameter(description = "생성할 GRI 데이터 항목", required = true)
+            @RequestBody GriDataItemDto griDataItemDto) {
+        log.debug("새로운 GRI 데이터 항목 생성 요청을 처리합니다.");
+        GriDataItemDto createdGriDataItem = griDataItemService.saveGriDataItem(griDataItemDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdGriDataItem);
     }
 
@@ -303,5 +306,106 @@ public class GriDataItemController {
                  griDataItems.size(), companyId);
         List<GriDataItemDto> createdItems = griDataItemService.saveAllGriDataItems(griDataItems, companyId);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdItems);
+    }
+
+    /**
+     * 회사별 GRI 데이터 배치 저장 (프론트엔드 호환용)
+     */
+    @Operation(summary = "회사별 GRI 데이터 배치 저장", 
+               description = "특정 회사의 여러 GRI 데이터 항목을 일괄 저장합니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "데이터 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+            @ApiResponse(responseCode = "404", description = "회사를 찾을 수 없음")
+    })
+    @PostMapping("/company/{companyId}/batch")
+    public ResponseEntity<List<GriDataItemDto>> batchSaveGriData(
+            @Parameter(description = "회사 ID", required = true) 
+            @PathVariable Long companyId,
+            @Parameter(description = "저장할 GRI 데이터 항목 목록", required = true) 
+            @RequestBody List<GriDataItemDto> griDataItems) {
+        
+        log.debug("회사 ID {}의 GRI 데이터 일괄 저장 요청. 항목 수: {}", companyId, griDataItems.size());
+        
+        // 각 항목에 회사 ID 설정 (누락된 경우)
+        griDataItems.forEach(item -> {
+            if (item.getCompanyId() == null) {
+                item.setCompanyId(companyId);
+            }
+        });
+        
+        // 데이터 유효성 검사
+        List<GriDataItemDto> validItems = griDataItems.stream()
+            .filter(item -> item.getStandardCode() != null && !item.getStandardCode().isEmpty() && 
+                           item.getDisclosureCode() != null && !item.getDisclosureCode().isEmpty())
+            .collect(Collectors.toList());
+        
+        if (validItems.isEmpty()) {
+            return ResponseEntity.badRequest().body(Collections.emptyList());
+        }
+        
+        // 데이터 저장
+        List<GriDataItemDto> savedItems = new ArrayList<>();
+        for (GriDataItemDto item : validItems) {
+            try {
+                GriDataItemDto savedItem = griDataItemService.saveGriDataItem(item);
+                savedItems.add(savedItem);
+            } catch (Exception e) {
+                log.error("GRI 데이터 저장 오류: {}", e.getMessage());
+            }
+        }
+        
+        return ResponseEntity.ok(savedItems);
+    }
+    
+    /**
+     * 단일 GRI 카테고리 데이터 저장
+     */
+    @Operation(summary = "단일 GRI 카테고리 데이터 저장", 
+               description = "특정 회사의, 특정 GRI 카테고리 데이터를 저장합니다.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "데이터 저장 성공"),
+            @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+            @ApiResponse(responseCode = "404", description = "회사를 찾을 수 없음")
+    })
+    @PostMapping("/company/{companyId}/category/{categoryId}")
+    public ResponseEntity<GriDataItemDto> saveSingleCategory(
+            @Parameter(description = "회사 ID", required = true) 
+            @PathVariable Long companyId,
+            @Parameter(description = "카테고리 ID (예: GRI-302-1)", required = true) 
+            @PathVariable String categoryId,
+            @Parameter(description = "저장할 GRI 데이터", required = true) 
+            @RequestBody GriDataItemDto categoryData) {
+        
+        log.debug("회사 ID {}의 카테고리 {} 데이터 저장 요청", companyId, categoryId);
+        
+        // 카테고리 ID 형식 검증 및 파싱
+        String[] parts = categoryId.split("-");
+        if (parts.length < 2) {
+            log.warn("잘못된 카테고리 ID 형식: {}", categoryId);
+            return ResponseEntity.badRequest().build();
+        }
+        
+        // 카테고리 데이터 설정
+        categoryData.setCompanyId(companyId);
+        categoryData.setStandardCode(parts[0]);
+        categoryData.setDisclosureCode(parts[1]);
+        
+        // 기존 데이터 조회 (업데이트인 경우)
+        Optional<GriDataItemDto> existingData = griDataItemService
+            .findByCompanyIdAndStandardCodeAndDisclosureCode(companyId, parts[0], parts[1]);
+        
+        if (existingData.isPresent()) {
+            categoryData.setId(existingData.get().getId());
+        }
+        
+        // 데이터 저장
+        try {
+            GriDataItemDto savedData = griDataItemService.saveGriDataItem(categoryData);
+            return ResponseEntity.ok(savedData);
+        } catch (Exception e) {
+            log.error("카테고리 {} 데이터 저장 오류: {}", categoryId, e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
     }
 } 

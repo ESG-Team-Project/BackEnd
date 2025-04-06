@@ -30,7 +30,7 @@ public class AuditLogDto {
     private String entityType;
 
     @Schema(description = "엔티티 ID", example = "42")
-    private Long entityId;
+    private String entityId;
 
     @Schema(description = "수행된 작업", example = "CREATE")
     private String action;

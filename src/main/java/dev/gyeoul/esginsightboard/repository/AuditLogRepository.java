@@ -106,4 +106,23 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      */
     @Query("SELECT a FROM AuditLog a WHERE a.username = :username ORDER BY a.createdAt DESC")
     List<AuditLog> findRecentLogsByUsername(@Param("username") String username, Pageable pageable);
+
+    /**
+     * 엔티티 타입으로 감사 로그 조회
+     */
+    Page<AuditLog> findByEntityType(String entityType, Pageable pageable);
+    
+    /**
+     * 엔티티 타입 및 ID로 감사 로그 조회
+     */
+    Page<AuditLog> findByEntityTypeAndEntityId(String entityType, String entityId, Pageable pageable);
+    
+    /**
+     * 엔티티 타입 및 ID 포함 문자열로 감사 로그 조회
+     */
+    @Query("SELECT a FROM AuditLog a WHERE a.entityType = :entityType AND a.entityId LIKE %:entityIdContaining%")
+    Page<AuditLog> findByEntityTypeAndEntityIdContaining(
+            @Param("entityType") String entityType, 
+            @Param("entityIdContaining") String entityIdContaining, 
+            Pageable pageable);
 } 

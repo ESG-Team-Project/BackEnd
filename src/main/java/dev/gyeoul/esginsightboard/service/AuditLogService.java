@@ -239,4 +239,168 @@ public class AuditLogService {
                 .createdAt(auditLog.getCreatedAt())
                 .build();
     }
+
+    /**
+     * 감사 로그 저장
+     *
+     * @param auditLogDto 저장할 감사 로그 DTO
+     * @return 저장된 감사 로그 DTO
+     */
+    public AuditLogDto saveAuditLog(AuditLogDto auditLogDto) {
+        log.debug("감사 로그 저장: {}", auditLogDto);
+        
+        AuditLog auditLog = AuditLog.builder()
+                .entityType(auditLogDto.getEntityType())
+                .entityId(auditLogDto.getEntityId())
+                .action(auditLogDto.getAction())
+                .details(auditLogDto.getDetails())
+                .username(auditLogDto.getUsername())
+                .ipAddress(auditLogDto.getIpAddress())
+                .build();
+        
+        AuditLog savedAuditLog = auditLogRepository.save(auditLog);
+        
+        return AuditLogDto.builder()
+                .id(savedAuditLog.getId())
+                .entityType(savedAuditLog.getEntityType())
+                .entityId(savedAuditLog.getEntityId())
+                .action(savedAuditLog.getAction())
+                .details(savedAuditLog.getDetails())
+                .username(savedAuditLog.getUsername())
+                .ipAddress(savedAuditLog.getIpAddress())
+                .createdAt(savedAuditLog.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * 엔티티 타입 및 ID로 감사 로그 조회
+     *
+     * @param entityType 엔티티 타입
+     * @param entityId 엔티티 ID
+     * @param pageable 페이징 정보
+     * @return 감사 로그 페이지
+     */
+    @Transactional(readOnly = true)
+    public Page<AuditLogDto> findByEntityTypeAndEntityId(String entityType, String entityId, Pageable pageable) {
+        log.debug("엔티티 타입 {} 및 ID {}로 감사 로그 조회", entityType, entityId);
+        
+        return auditLogRepository.findByEntityTypeAndEntityId(entityType, entityId, pageable)
+                .map(auditLog -> AuditLogDto.builder()
+                        .id(auditLog.getId())
+                        .entityType(auditLog.getEntityType())
+                        .entityId(auditLog.getEntityId())
+                        .action(auditLog.getAction())
+                        .details(auditLog.getDetails())
+                        .username(auditLog.getUsername())
+                        .ipAddress(auditLog.getIpAddress())
+                        .createdAt(auditLog.getCreatedAt())
+                        .build());
+    }
+
+    /**
+     * 엔티티 타입 및 ID 포함 여부로 감사 로그 조회
+     *
+     * @param entityType 엔티티 타입
+     * @param entityIdContaining 엔티티 ID 포함 문자열
+     * @param pageable 페이징 정보
+     * @return 감사 로그 페이지 응답
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AuditLogDto> findByEntityTypeAndEntityIdContaining(
+            String entityType, String entityIdContaining, Pageable pageable) {
+        log.debug("엔티티 타입 {} 및 ID 포함 문자열 {}로 감사 로그 조회", entityType, entityIdContaining);
+        
+        Page<AuditLogDto> result = auditLogRepository.findByEntityTypeAndEntityIdContaining(
+                entityType, entityIdContaining, pageable)
+                .map(auditLog -> AuditLogDto.builder()
+                        .id(auditLog.getId())
+                        .entityType(auditLog.getEntityType())
+                        .entityId(auditLog.getEntityId())
+                        .action(auditLog.getAction())
+                        .details(auditLog.getDetails())
+                        .username(auditLog.getUsername())
+                        .ipAddress(auditLog.getIpAddress())
+                        .createdAt(auditLog.getCreatedAt())
+                        .build());
+        
+        return PageResponse.from(result);
+    }
+
+    /**
+     * 전체 감사 로그 조회 (페이지네이션)
+     *
+     * @param pageable 페이징 정보
+     * @return 감사 로그 페이지 응답
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AuditLogDto> findAllAuditLogs(Pageable pageable) {
+        log.debug("전체 감사 로그를 페이지네이션으로 조회합니다. 페이지: {}, 크기: {}", 
+                 pageable.getPageNumber(), pageable.getPageSize());
+        
+        Page<AuditLogDto> result = auditLogRepository.findAll(pageable)
+                .map(auditLog -> AuditLogDto.builder()
+                        .id(auditLog.getId())
+                        .entityType(auditLog.getEntityType())
+                        .entityId(auditLog.getEntityId())
+                        .action(auditLog.getAction())
+                        .details(auditLog.getDetails())
+                        .username(auditLog.getUsername())
+                        .ipAddress(auditLog.getIpAddress())
+                        .createdAt(auditLog.getCreatedAt())
+                        .build());
+        
+        return PageResponse.from(result);
+    }
+    
+    /**
+     * 엔티티 타입으로 감사 로그 조회
+     *
+     * @param entityType 엔티티 타입
+     * @param pageable 페이징 정보
+     * @return 감사 로그 페이지 응답
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AuditLogDto> findByEntityType(String entityType, Pageable pageable) {
+        log.debug("엔티티 타입 {}로 감사 로그를 조회합니다.", entityType);
+        
+        Page<AuditLogDto> result = auditLogRepository.findByEntityType(entityType, pageable)
+                .map(auditLog -> AuditLogDto.builder()
+                        .id(auditLog.getId())
+                        .entityType(auditLog.getEntityType())
+                        .entityId(auditLog.getEntityId())
+                        .action(auditLog.getAction())
+                        .details(auditLog.getDetails())
+                        .username(auditLog.getUsername())
+                        .ipAddress(auditLog.getIpAddress())
+                        .createdAt(auditLog.getCreatedAt())
+                        .build());
+        
+        return PageResponse.from(result);
+    }
+    
+    /**
+     * 사용자명으로 감사 로그 조회
+     *
+     * @param username 사용자명
+     * @param pageable 페이징 정보
+     * @return 감사 로그 페이지 응답
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<AuditLogDto> findByUsername(String username, Pageable pageable) {
+        log.debug("사용자 {}의 감사 로그를 조회합니다.", username);
+        
+        Page<AuditLogDto> result = auditLogRepository.findByUsername(username, pageable)
+                .map(auditLog -> AuditLogDto.builder()
+                        .id(auditLog.getId())
+                        .entityType(auditLog.getEntityType())
+                        .entityId(auditLog.getEntityId())
+                        .action(auditLog.getAction())
+                        .details(auditLog.getDetails())
+                        .username(auditLog.getUsername())
+                        .ipAddress(auditLog.getIpAddress())
+                        .createdAt(auditLog.getCreatedAt())
+                        .build());
+        
+        return PageResponse.from(result);
+    }
 } 

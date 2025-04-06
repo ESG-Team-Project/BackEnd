@@ -6,10 +6,16 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -221,11 +227,21 @@ public class GriDataItemDto {
     private String dataType;
     
     /**
+     * 유효 여부
+     * <p>
+     * 필수 필드가 모두 설정되었는지 확인합니다.
+     * </p>
+     */
+    @Schema(description = "유효 여부", example = "true")
+    private Boolean valid;
+
+    /**
      * 시계열 데이터 포인트 목록
      * <p>
      * 데이터 유형이 TIMESERIES인 경우, 이 필드에 시계열 데이터가 포함됩니다.
      * </p>
      */
+    @Schema(description = "시계열 데이터 포인트 목록")
     private List<TimeSeriesDataPointDto> timeSeriesData;
 
     /**
@@ -363,4 +379,45 @@ public class GriDataItemDto {
      *     .build();
      * </pre>
      */
+
+    @JsonIgnore
+    public List<TimeSeriesDataPointDto> parseTimeSeriesData() {
+        if (disclosureValue != null && 
+            disclosureValue.startsWith("[") && 
+            disclosureValue.endsWith("]")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                return mapper.readValue(disclosureValue, 
+                    new TypeReference<List<TimeSeriesDataPointDto>>() {});
+            } catch (Exception e) {
+                log.error("시계열 데이터 파싱 오류: {}", e.getMessage());
+                return Collections.emptyList();
+            }
+        }
+        return null;
+    }
+    
+    @JsonIgnore
+    public void serializeTimeSeriesData() {
+        if (timeSeriesData != null && !timeSeriesData.isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                this.disclosureValue = mapper.writeValueAsString(timeSeriesData);
+                
+                // 최신 값을 numericValue로 설정
+                TimeSeriesDataPointDto latest = timeSeriesData.stream()
+                    .max(Comparator.comparing(TimeSeriesDataPointDto::getYear))
+                    .orElse(null);
+                
+                if (latest != null) {
+                    this.numericValue = latest.getValue();
+                    this.unit = latest.getUnit();
+                }
+            } catch (Exception e) {
+                log.error("시계열 데이터 직렬화 오류: {}", e.getMessage());
+            }
+        }
+    }
 } 

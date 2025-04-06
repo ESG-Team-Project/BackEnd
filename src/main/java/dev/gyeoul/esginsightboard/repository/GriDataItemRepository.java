@@ -177,4 +177,10 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long>,
             @Param("disclosureCode") String disclosureCode,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    /**
+     * 회사, 표준 코드, 공시 코드로 GRI 데이터 항목 조회
+     */
+    Optional<GriDataItem> findByCompanyIdAndStandardCodeAndDisclosureCode(
+            Long companyId, String standardCode, String disclosureCode);
 } 
