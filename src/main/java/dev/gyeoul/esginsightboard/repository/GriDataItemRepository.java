@@ -47,29 +47,7 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long> 
      * 사용 예시: repository.findByDisclosureCode("302-1") - 조직 내 에너지 소비량 데이터 조회
      */
     List<GriDataItem> findByDisclosureCode(String disclosureCode);
-    
-    /**
-     * 표준 코드와 공시 코드 조합으로 GRI 데이터 항목을 조회
-     * 
-     * @param standardCode GRI 표준 코드 (예: GRI 302)
-     * @param disclosureCode 공시 코드 (예: 302-1)
-     * @return 조건에 해당하는 데이터 항목 목록
-     * 
-     * 사용 예시: repository.findByStandardCodeAndDisclosureCode("GRI 302", "302-1")
-     */
-    List<GriDataItem> findByStandardCodeAndDisclosureCode(String standardCode, String disclosureCode);
-    
-    /**
-     * 최근 생성된 GRI 데이터 항목을 조회
-     * 
-     * @param limit 조회할 항목 수
-     * @return 최근 생성된 데이터 항목 목록
-     * 
-     * 사용 예시: repository.findRecentItems(10) - 최근 생성된 10개 항목 조회
-     */
-    @Query(value = "SELECT g FROM GriDataItem g ORDER BY g.createdAt DESC")
-    List<GriDataItem> findRecentItems(@Param("limit") int limit);
-    
+
     /**
      * 검증 상태별 GRI 데이터 항목을 조회
      * 

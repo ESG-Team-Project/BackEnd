@@ -6,6 +6,7 @@ import dev.gyeoul.esginsightboard.entity.User;
 import dev.gyeoul.esginsightboard.service.ChartDataService;
 import dev.gyeoul.esginsightboard.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,15 +23,11 @@ public class ChartDataController {
 
     // ✅ 현재 로그인한 사용자의 차트 데이터 저장
     @PostMapping
-    public ResponseEntity<ChartDataDto> saveChart(HttpServletRequest request, @RequestBody ChartDataDto dto) {
+    public ResponseEntity<ChartDataDto> saveChart(HttpServletRequest request, @Valid @RequestBody ChartDataDto dto) {
         UserDto userDto = (UserDto) request.getAttribute("user");
         if (userDto == null) {
             return ResponseEntity.status(401).build();
         }
-
-        // ✅ UserRepository를 직접 사용해 User 조회
-        User user = userRepository.findById(userDto.getId())
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userDto.getId()));
 
         ChartDataDto savedChart = chartDataService.saveChartData(dto, userDto); // ✅ User 객체 전달
         return ResponseEntity.ok(savedChart);

@@ -15,13 +15,12 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 public class ChartDataDto {
-    private Long userId;  // ✅ User 객체 X → userId (Long)만 저장
     private String title;
     private String description;
     private String category;
     private String indicator;
     private Integer chartGrid;
-    private List<Map<String, Object>> data;
+    private List<Map<String, Object>> dataSets;
     private String chartType;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
@@ -29,7 +28,6 @@ public class ChartDataDto {
     // ✅ 엔티티 → DTO 변환
     public static ChartDataDto fromEntity(ChartData chartData) {
         ChartDataDto dto = new ChartDataDto();
-        dto.setUserId(chartData.getUser().getId());  // ✅ User → userId로 변환
         dto.setTitle(chartData.getTitle());
         dto.setDescription(chartData.getDescription());
         dto.setCategory(chartData.getCategory());
@@ -38,9 +36,9 @@ public class ChartDataDto {
         dto.setChartType(chartData.getChartType());
 
         try {
-            dto.setData(objectMapper.readValue(chartData.getData(), new TypeReference<>() {}));
+            dto.setDataSets(objectMapper.readValue(chartData.getData(), new TypeReference<>() {}));
         } catch (Exception e) {
-            dto.setData(null);
+            dto.setDataSets(null);
         }
 
         return dto;
@@ -50,7 +48,7 @@ public class ChartDataDto {
     public ChartData toEntity(User user) {  // ✅ User 객체를 직접 받음
         String jsonData;
         try {
-            jsonData = objectMapper.writeValueAsString(this.data);
+            jsonData = objectMapper.writeValueAsString(this.dataSets);
         } catch (Exception e) {
             jsonData = "[]"; // Default empty array
         }

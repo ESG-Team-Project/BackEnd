@@ -47,6 +47,7 @@ public class EsgChartDataDto {
                 .build();
     }
 
+
     // 생성자
 //    public EsgChartDataDto(String category, String chartTitle, String indicatorCode, Map<String, String> indicatorInputs, Long companyId) {
 //        String trimmedCode = category.trim().toUpperCase();
