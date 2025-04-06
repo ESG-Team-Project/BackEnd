@@ -133,4 +133,56 @@ public class GriDataItemMapper {
         
         return entity;
     }
+    
+    /**
+     * GriDataItemDto의 값으로 기존 GriDataItem 엔티티를 업데이트
+     * 
+     * @param dto 업데이트에 사용할 GriDataItemDto
+     * @param entity 업데이트할 GriDataItem 엔티티
+     */
+    public void updateEntityFromDto(GriDataItemDto dto, GriDataItem entity) {
+        if (dto == null || entity == null) {
+            return;
+        }
+        
+        // 시계열 데이터가 있지만 disclosureValue에 반영되지 않은 경우 처리
+        if (dto.getTimeSeriesData() != null && !dto.getTimeSeriesData().isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                mapper.registerModule(new JavaTimeModule());
+                dto.setDisclosureValue(mapper.writeValueAsString(dto.getTimeSeriesData()));
+                
+                // 최신 값을 numericValue로 설정
+                TimeSeriesDataPointDto latest = dto.getTimeSeriesData().stream()
+                    .max(java.util.Comparator.comparing(TimeSeriesDataPointDto::getYear))
+                    .orElse(null);
+                
+                if (latest != null) {
+                    try {
+                        dto.setNumericValue(Double.parseDouble(latest.getValue()));
+                    } catch (NumberFormatException e) {
+                        log.warn("시계열 데이터 값을 Double로 변환할 수 없습니다: {}", latest.getValue());
+                        dto.setNumericValue(null);
+                    }
+                    dto.setUnit(latest.getUnit());
+                }
+            } catch (Exception e) {
+                log.error("시계열 데이터 직렬화 오류: {}", e.getMessage());
+            }
+        }
+        
+        // 엔티티 필드 업데이트 (ID는 변경하지 않음)
+        entity.setStandardCode(dto.getStandardCode());
+        entity.setDisclosureCode(dto.getDisclosureCode());
+        entity.setDisclosureTitle(dto.getDisclosureTitle());
+        entity.setDisclosureValue(dto.getDisclosureValue());
+        entity.setDescription(dto.getDescription());
+        entity.setNumericValue(dto.getNumericValue());
+        entity.setUnit(dto.getUnit());
+        entity.setReportingPeriodStart(dto.getReportingPeriodStart());
+        entity.setReportingPeriodEnd(dto.getReportingPeriodEnd());
+        entity.setVerificationStatus(dto.getVerificationStatus());
+        entity.setVerificationProvider(dto.getVerificationProvider());
+        entity.setCategory(dto.getCategory());
+    }
 } 

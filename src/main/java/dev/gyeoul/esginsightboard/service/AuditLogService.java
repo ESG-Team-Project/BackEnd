@@ -47,13 +47,15 @@ public class AuditLogService {
      */
     @Transactional
     public void logActivity(String entityType, Long entityId, AuditLog.AuditAction action, String details) {
+        log.debug("감사 로그 저장: {}, {}, {}", entityType, entityId, action);
+        
         try {
             String username = getCurrentUsername();
             String ipAddress = getClientIpAddress();
             
             AuditLog auditLog = AuditLog.builder()
                     .entityType(entityType)
-                    .entityId(entityId)
+                    .entityId(entityId.toString())
                     .action(action.name())
                     .details(details)
                     .username(username)
@@ -109,7 +111,7 @@ public class AuditLogService {
     @Transactional(readOnly = true)
     public PageResponse<AuditLogDto> getAuditLogsByEntity(String entityType, Long entityId, Pageable pageable) {
         log.debug("엔티티별 감사 로그 조회: 유형={}, ID={}, 페이지={}", entityType, entityId, pageable.getPageNumber());
-        Page<AuditLogDto> result = auditLogRepository.findByEntityTypeAndEntityId(entityType, entityId, pageable)
+        Page<AuditLogDto> result = auditLogRepository.findByEntityTypeAndEntityId(entityType, entityId.toString(), pageable)
                 .map(this::mapToDto);
         return PageResponse.from(result);
     }

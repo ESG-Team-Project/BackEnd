@@ -278,9 +278,8 @@ public class GriDataItemController {
                        schema = @Schema(implementation = GriDataItemDto.class))
             @RequestBody GriDataItemDto griDataItemDto) {
         log.debug("ID가 {}인 GRI 데이터 항목 수정 요청을 처리합니다.", id);
-        return griDataItemService.updateGriDataItem(id, griDataItemDto)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        GriDataItemDto updatedItem = griDataItemService.updateGriDataItem(id, griDataItemDto);
+        return ResponseEntity.ok(updatedItem);
     }
 
     @Operation(summary = "GRI 데이터 항목 삭제", description = "특정 ID의 GRI 데이터 항목을 삭제합니다.")
@@ -304,7 +303,11 @@ public class GriDataItemController {
             @RequestParam Long companyId) {
         log.debug("GRI 데이터 항목 일괄 저장 요청을 처리합니다. 항목 수: {}, 회사 ID: {}", 
                  griDataItems.size(), companyId);
-        List<GriDataItemDto> createdItems = griDataItemService.saveAllGriDataItems(griDataItems, companyId);
+                 
+        // 각 항목에 회사 ID 설정
+        griDataItems.forEach(item -> item.setCompanyId(companyId));
+        
+        List<GriDataItemDto> createdItems = griDataItemService.saveGriDataItems(griDataItems);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdItems);
     }
 

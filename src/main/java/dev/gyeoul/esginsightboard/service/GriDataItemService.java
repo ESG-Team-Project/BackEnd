@@ -8,6 +8,7 @@ import dev.gyeoul.esginsightboard.dto.TimeSeriesDataPointDto;
 import dev.gyeoul.esginsightboard.entity.Company;
 import dev.gyeoul.esginsightboard.entity.GriDataItem;
 import dev.gyeoul.esginsightboard.entity.TimeSeriesDataPoint;
+import dev.gyeoul.esginsightboard.mapper.GriDataItemMapper;
 import dev.gyeoul.esginsightboard.repository.CompanyRepository;
 import dev.gyeoul.esginsightboard.repository.GriDataItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -73,7 +75,12 @@ public class GriDataItemService {
                     .orElse(null);
                 
                 if (latestPoint != null) {
-                    dto.setNumericValue(latestPoint.getValue());
+                    try {
+                        dto.setNumericValue(Double.parseDouble(latestPoint.getValue()));
+                    } catch (NumberFormatException e) {
+                        log.warn("시계열 데이터 값을 Double로 변환할 수 없습니다: {}", latestPoint.getValue());
+                        dto.setNumericValue(null);
+                    }
                     dto.setUnit(latestPoint.getUnit());
                 }
             } catch (Exception e) {
@@ -100,7 +107,12 @@ public class GriDataItemService {
                         .orElse(null);
                     
                     if (latestPoint != null) {
-                        dto.setNumericValue(latestPoint.getValue());
+                        try {
+                            dto.setNumericValue(Double.parseDouble(latestPoint.getValue()));
+                        } catch (NumberFormatException e) {
+                            log.warn("시계열 데이터 값을 Double로 변환할 수 없습니다: {}", latestPoint.getValue());
+                            dto.setNumericValue(null);
+                        }
                         dto.setUnit(latestPoint.getUnit());
                     }
                 }
@@ -223,68 +235,98 @@ public class GriDataItemService {
 
     /**
      * GRI 데이터 항목 저장
+     * 
+     * @param dto 저장할 GRI 데이터 항목 DTO
+     * @return 저장된 GRI 데이터 항목 DTO
      */
-    public GriDataItemDto saveGriDataItem(GriDataItemDto griDataItemDto) {
-        log.debug("GRI 데이터 항목을 저장합니다. 공시 코드: {}, 회사 ID: {}", 
-                 griDataItemDto.getDisclosureCode(), griDataItemDto.getCompanyId());
+    public GriDataItemDto saveGriDataItem(GriDataItemDto dto) {
+        log.debug("GRI 데이터 항목을 저장합니다: {}-{}", dto.getStandardCode(), dto.getDisclosureCode());
         
-        boolean isUpdate = griDataItemDto.getId() != null;
+        // 시계열 데이터 처리 
+        processTimeSeriesData(dto);
         
-        // 시계열 데이터 처리
-        processTimeSeriesData(griDataItemDto);
+        // 엔티티 변환 및 저장
+        GriDataItem entity = griDataItemMapper.toEntity(dto);
         
-        // 데이터 저장
-        GriDataItem entity = griDataItemMapper.toEntity(griDataItemDto);
+        // 회사 설정 (회사 ID가 있는 경우)
+        if (dto.getCompanyId() != null) {
+            companyRepository.findById(dto.getCompanyId()).ifPresent(entity::setCompany);
+        }
+        
+        // 저장
         GriDataItem savedEntity = griDataItemRepository.save(entity);
-        GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
-        
-        // 시계열 데이터 다시 처리 (저장된 entity에서)
-        savedDto = processTimeSeriesDataForRead(savedDto);
         
         // 감사 로그 생성
-        createAuditLog(savedDto, isUpdate ? "UPDATE" : "CREATE");
+        createAuditLog(dto, dto.getId() == null ? "CREATE" : "UPDATE");
         
-        return savedDto;
+        // DTO로 변환하여 반환
+        return processTimeSeriesDataForRead(griDataItemMapper.toDto(savedEntity));
+    }
+    
+    /**
+     * 회사 ID를 지정하여 GRI 데이터 항목 저장
+     * 
+     * @param dto 저장할 GRI 데이터 항목 DTO
+     * @param companyId 회사 ID
+     * @return 저장된 GRI 데이터 항목 DTO
+     */
+    public GriDataItemDto saveGriDataItem(GriDataItemDto dto, Long companyId) {
+        log.debug("회사 ID {}에 GRI 데이터 항목을 저장합니다: {}-{}", 
+                 companyId, dto.getStandardCode(), dto.getDisclosureCode());
+        
+        // 회사 ID 설정
+        dto.setCompanyId(companyId);
+        
+        // 기본 저장 메서드 호출
+        return saveGriDataItem(dto);
     }
 
     /**
      * 여러 GRI 데이터 항목 저장
      */
-    public List<GriDataItemDto> saveGriDataItems(List<GriDataItemDto> griDataItemDtos) {
-        log.debug("{}개의 GRI 데이터 항목을 저장합니다.", griDataItemDtos.size());
-        return griDataItemDtos.stream()
-                .map(this::saveGriDataItem)
-                .collect(Collectors.toList());
+    public List<GriDataItemDto> saveGriDataItems(List<GriDataItemDto> dtos) {
+        log.debug("{}개의 GRI 데이터 항목을 저장합니다.", dtos.size());
+        
+        List<GriDataItemDto> result = new ArrayList<>();
+        for (GriDataItemDto dto : dtos) {
+            result.add(saveGriDataItem(dto));
+        }
+        
+        return result;
     }
 
     /**
      * GRI 데이터 항목 업데이트
      */
-    public GriDataItemDto updateGriDataItem(Long id, GriDataItemDto griDataItemDto) {
+    public GriDataItemDto updateGriDataItem(Long id, GriDataItemDto dto) {
         log.debug("ID가 {}인 GRI 데이터 항목을 업데이트합니다.", id);
         
-        // 기존 데이터 확인
-        GriDataItem existingItem = griDataItemRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("해당 ID의 GRI 데이터 항목이 없습니다: " + id));
+        // 기존 데이터 조회
+        GriDataItem existingEntity = griDataItemRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("ID가 " + id + "인 GRI 데이터 항목을 찾을 수 없습니다."));
         
         // ID 설정
-        griDataItemDto.setId(id);
+        dto.setId(id);
         
         // 시계열 데이터 처리
-        processTimeSeriesData(griDataItemDto);
+        processTimeSeriesData(dto);
         
-        // 데이터 업데이트
-        GriDataItem updatedEntity = griDataItemMapper.toEntity(griDataItemDto);
-        GriDataItem savedEntity = griDataItemRepository.save(updatedEntity);
-        GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
+        // 엔티티 업데이트
+        griDataItemMapper.updateEntityFromDto(dto, existingEntity);
         
-        // 시계열 데이터 다시 처리
-        savedDto = processTimeSeriesDataForRead(savedDto);
+        // 회사 설정 (회사 ID가 있는 경우)
+        if (dto.getCompanyId() != null) {
+            companyRepository.findById(dto.getCompanyId()).ifPresent(existingEntity::setCompany);
+        }
+        
+        // 저장
+        GriDataItem updatedEntity = griDataItemRepository.save(existingEntity);
         
         // 감사 로그 생성
-        createAuditLog(savedDto, "UPDATE");
+        createAuditLog(dto, "UPDATE");
         
-        return savedDto;
+        // DTO로 변환하여 반환
+        return processTimeSeriesDataForRead(griDataItemMapper.toDto(updatedEntity));
     }
 
     /**
