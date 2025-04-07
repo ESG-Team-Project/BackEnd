@@ -86,6 +86,11 @@ public class AuthController {
         summary = "토큰 검증", 
         description = "JWT 토큰의 유효성을 검증합니다."
     )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "검증 성공", 
+            content = @Content(schema = @Schema(implementation = TokenVerificationResponse.class))),
+        @ApiResponse(responseCode = "400", description = "잘못된 형식의 토큰")
+    })
     public ResponseEntity<TokenVerificationResponse> verifyToken(@RequestBody TokenVerificationRequest request) {
         String token = request.getToken();
         

@@ -4,6 +4,7 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,11 +38,21 @@ public class GlobalExceptionHandler {
     /**
      * API 오류 응답 객체
      */
+    @Schema(description = "API 오류 응답")
     public static class ApiError {
+        @Schema(description = "오류 발생 시간", example = "2025-04-07T10:15:30.123456789")
         public final LocalDateTime timestamp = LocalDateTime.now();
+        
+        @Schema(description = "HTTP 상태 코드", example = "400")
         public final int status;
+        
+        @Schema(description = "HTTP 상태 메시지", example = "Bad Request")
         public final String error;
+        
+        @Schema(description = "오류 메시지", example = "입력값 검증에 실패했습니다")
         public final String message;
+        
+        @Schema(description = "상세 오류 정보", nullable = true)
         public Object details;
 
         public ApiError(HttpStatus status, String message) {
