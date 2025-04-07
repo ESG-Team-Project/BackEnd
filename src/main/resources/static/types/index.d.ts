@@ -22,17 +22,31 @@ export interface PageResponse<T> {
 /**
  * 오류 응답 인터페이스
  */
-export interface ErrorResponse {
-  status: number;
-  code: string;
-  message: string;
+export interface ApiError {
   timestamp: string;
-  path: string;
-  errors?: ValidationError[];
+  status: number;
+  error: string;
+  message: string;
+  details?: any;
 }
 
 /**
  * 유효성 검증 오류 인터페이스
+ * 필드 이름을 키로, 오류 메시지를 값으로 하는 맵 형태
+ */
+export interface ValidationErrors {
+  [field: string]: string;
+}
+
+/**
+ * 기존 코드와의 호환성을 위한 타입 별칭
+ * @deprecated ApiError 사용을 권장합니다.
+ */
+export type ErrorResponse = ApiError;
+
+/**
+ * 기존 코드와의 호환성을 위한 인터페이스
+ * @deprecated ValidationErrors 사용을 권장합니다.
  */
 export interface ValidationError {
   field: string;

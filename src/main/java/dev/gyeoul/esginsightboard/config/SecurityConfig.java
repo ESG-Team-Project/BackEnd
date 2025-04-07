@@ -77,7 +77,7 @@ public class SecurityConfig {
             .requestCache(RequestCacheConfigurer::disable)  // 요청 캐시 비활성화
             .authorizeHttpRequests(auth -> auth
                 // 인증 불필요 API
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/favicon.ico", "/h2-console/**").permitAll()  // API 문서 관련 경로
+                .requestMatchers("/", "/swagger-ui/**", "/v3/api-docs/**", "/api-docs/**", "/favicon.ico", "/h2-console/**").permitAll()  // API 문서 관련 경로
                 .requestMatchers("/api/auth/**").permitAll()  // 인증 관련 API
                 .requestMatchers("/error").permitAll()  // 오류 페이지
                 .requestMatchers("/static/**").permitAll()  // 정적 리소스

@@ -11,6 +11,6 @@ public class HomeController {
 
     @GetMapping("/")
     public RedirectView home() {
-        return new RedirectView("/swagger-ui.html");
+        return new RedirectView("/swagger-ui/index.html");
     }
 } 

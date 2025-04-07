@@ -28,7 +28,7 @@ server:
 # Springdoc OpenAPI 설정
 springdoc:
   api-docs:
-    path: /api-docs
+    path: /v3/api-docs
     enabled: true
   swagger-ui:
     path: /swagger-ui.html
@@ -39,8 +39,8 @@ springdoc:
     doc-expansion: none
     default-models-expand-depth: -1
     show-extensions: true
-    url: /api-docs
-    config-url: /api-docs/swagger-config
+    url: /v3/api-docs
+    config-url: /v3/api-docs/swagger-config
     hide-empty-tags: true
   default-consumes-media-type: application/json
   default-produces-media-type: application/json

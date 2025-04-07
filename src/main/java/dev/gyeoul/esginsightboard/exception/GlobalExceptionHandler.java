@@ -4,6 +4,7 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -37,11 +38,11 @@ public class GlobalExceptionHandler {
      * API 오류 응답 객체
      */
     public static class ApiError {
-        private final LocalDateTime timestamp = LocalDateTime.now();
-        private final int status;
-        private final String error;
-        private final String message;
-        private Object details;
+        public final LocalDateTime timestamp = LocalDateTime.now();
+        public final int status;
+        public final String error;
+        public final String message;
+        public Object details;
 
         public ApiError(HttpStatus status, String message) {
             this.status = status.value();
@@ -53,26 +54,6 @@ public class GlobalExceptionHandler {
             this(status, message);
             this.details = details;
         }
-
-        public LocalDateTime getTimestamp() {
-            return timestamp;
-        }
-
-        public int getStatus() {
-            return status;
-        }
-
-        public String getError() {
-            return error;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public Object getDetails() {
-            return details;
-        }
     }
 
     /**
@@ -81,22 +62,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IOException.class)
     public ResponseEntity<ApiError> handleIOException(IOException ex) {
         log.error("파일 처리 중 오류 발생: {}", ex.getMessage(), ex);
+        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "파일 처리 중 오류가 발생했습니다", ex.getMessage());
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "파일 처리 중 오류가 발생했습니다", ex.getMessage()));
-    }
-
-    /**
-     * 문서 생성 관련 예외 처리
-     */
-    @ExceptionHandler({com.itextpdf.text.DocumentException.class})
-    public ResponseEntity<ApiError> handleDocumentException(Exception ex) {
-        log.error("문서 생성 중 오류 발생: {}", ex.getMessage(), ex);
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "문서 생성 중 오류가 발생했습니다", ex.getMessage()));
+                .body(error);
     }
 
     /**
@@ -111,10 +81,11 @@ public class GlobalExceptionHandler {
         String message = String.format("파라미터 '%s'의 값이 '%s' 타입으로 변환될 수 없습니다", 
                 paramName, requiredType);
         
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST, message, ex.getValue());
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.BAD_REQUEST, message, ex.getValue()));
+                .body(error);
     }
 
     /**
@@ -129,10 +100,11 @@ public class GlobalExceptionHandler {
             errors.put(error.getField(), error.getDefaultMessage())
         );
         
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST, "입력값 검증에 실패했습니다", errors);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.BAD_REQUEST, "입력값 검증에 실패했습니다", errors));
+                .body(error);
     }
 
     /**
@@ -141,11 +113,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiError> handleMissingServletRequestParameterException(MissingServletRequestParameterException ex) {
         log.warn("필수 파라미터 누락: {}", ex.getMessage());
+        
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST, 
+                String.format("필수 파라미터 '%s'이(가) 누락되었습니다", ex.getParameterName()));
+        
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.BAD_REQUEST, 
-                    String.format("필수 파라미터 '%s'이(가) 누락되었습니다", ex.getParameterName())));
+                .body(error);
     }
 
     /**
@@ -154,10 +129,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         log.warn("파일 크기 초과: {}", ex.getMessage());
+        
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST, "업로드된 파일이 최대 허용 크기를 초과했습니다");
+        
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.BAD_REQUEST, "업로드된 파일이 최대 허용 크기를 초과했습니다"));
+                .body(error);
     }
 
     /**
@@ -184,10 +162,12 @@ public class GlobalExceptionHandler {
             message = "잘못된 형식의 인증 토큰입니다";
         }
         
+        ApiError error = new ApiError(status, message);
+        
         return ResponseEntity
                 .status(status)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(status, message));
+                .body(error);
     }
 
     /**
@@ -211,10 +191,12 @@ public class GlobalExceptionHandler {
             message = "아이디 또는 비밀번호가 일치하지 않습니다";
         }
         
+        ApiError error = new ApiError(status, message);
+        
         return ResponseEntity
                 .status(status)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(status, message));
+                .body(error);
     }
 
     /**
@@ -222,10 +204,25 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGenericException(Exception ex) {
+        // 문서 생성 예외인 경우 특별히 처리
+        String exceptionClassName = ex.getClass().getName();
+        if ("com.itextpdf.text.DocumentException".equals(exceptionClassName)) {
+            log.error("문서 생성 중 오류 발생: {}", ex.getMessage(), ex);
+            ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "문서 생성 중 오류가 발생했습니다", ex.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(error);
+        }
+        
+        // 그 외 일반 예외
         log.error("예상치 못한 오류 발생: {}", ex.getMessage(), ex);
+        
+        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다");
+        
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiError(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다"));
+                .body(error);
     }
 } 
