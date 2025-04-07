@@ -585,23 +585,56 @@ public class GriDataItemService {
         log.info("회사 ID {}의 GRI 데이터 {}개 항목 조회됨", companyId, items.size());
         
         Map<String, GriDataItemDto> result = new HashMap<>();
+        Set<String> duplicateKeys = new HashSet<>();
         
         for (GriDataItem item : items) {
             String key = item.getStandardCode() + "-" + item.getDisclosureCode();
+            
+            // 중복 키 확인
+            if (result.containsKey(key)) {
+                duplicateKeys.add(key);
+                log.warn("중복 키 발견: {}, 이전 ID: {}, 새 ID: {}", 
+                        key, result.get(key).getId(), item.getId());
+            }
+            
             GriDataItemDto dto = griDataItemMapper.toDto(item);
             dto = processTimeSeriesDataForRead(dto);
             result.put(key, dto);
-            log.debug("GRI 항목 맵에 추가: {}-{}, ID={}, 값={}", 
-                     item.getStandardCode(), item.getDisclosureCode(), 
-                     item.getId(), StringUtils.truncate(item.getDisclosureValue(), 30));
+            
+            // info 레벨로 변경하여 항상 로그 확인 가능
+            log.info("GRI 항목 맵에 추가: {}-{}, ID={}, 값='{}'", 
+                    item.getStandardCode(), item.getDisclosureCode(), 
+                    item.getId(), StringUtils.truncate(item.getDisclosureValue(), 30));
         }
         
-        // 데이터 샘플 로깅 (첫 번째 항목)
-        if (!items.isEmpty()) {
-            GriDataItem sample = items.get(0);
-            log.info("GRI 데이터 샘플 - ID: {}, 코드: {}-{}, 최종 수정일: {}", 
-                    sample.getId(), sample.getStandardCode(), sample.getDisclosureCode(), 
-                    sample.getUpdatedAt());
+        if (!duplicateKeys.isEmpty()) {
+            log.warn("발견된 중복 키: {} - 중복 항목은 덮어쓰기됨", duplicateKeys);
+        }
+        
+        // 디버깅을 위한 stack trace 로깅 (호출 경로 확인)
+        if (log.isDebugEnabled()) {
+            StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+            StringBuilder callPath = new StringBuilder("호출 경로: ");
+            for (int i = 2; i < Math.min(6, stackTrace.length); i++) {
+                callPath.append(stackTrace[i].getClassName())
+                        .append(".")
+                        .append(stackTrace[i].getMethodName())
+                        .append("() → ");
+            }
+            callPath.append("...");
+            log.debug(callPath.toString());
+        }
+        
+        // 스레드 정보 및 HTTP 요청 정보 로깅 (URL 확인)
+        try {
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes) {
+                HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
+                log.info("GRI 데이터 요청 정보 - URL: {}, 메소드: {}", 
+                        request.getRequestURI(), request.getMethod());
+            }
+        } catch (Exception e) {
+            log.debug("HTTP 요청 정보 로깅 중 오류: {}", e.getMessage());
         }
         
         log.info("회사 ID {}의 GRI 데이터 맵 조회 완료. {}개 항목 반환", companyId, result.size());
@@ -638,6 +671,11 @@ public class GriDataItemService {
         Map<String, GriDataItemDto> result = new HashMap<>();
         List<GriDataItem> updatedEntities = new ArrayList<>();
         
+        // 각 엔트리에 대한 상세 정보 로깅
+        griDataMap.forEach((key, value) -> {
+            log.debug("입력 항목 정보 - 키: {}, 값: {}", key, value);
+        });
+        
         for (Map.Entry<String, GriDataItemDto> entry : griDataMap.entrySet()) {
             String key = entry.getKey();
             GriDataItemDto newData = entry.getValue();
@@ -645,56 +683,104 @@ public class GriDataItemService {
             // 회사 ID 설정
             newData.setCompanyId(companyId);
             
-            // 키 파싱
-            String[] parts = key.split("-");
-            if (parts.length >= 2) {
-                newData.setStandardCode(parts[0]);
-                newData.setDisclosureCode(parts[1]);
-                
-                // 필수 필드 설정
-                ensureRequiredFields(newData);
-                
-                GriDataItem entity;
-                boolean isNew = false;
-                
-                // 기존 엔티티 찾기
-                if (existingEntities.containsKey(key)) {
-                    // 기존 엔티티 업데이트
-                    entity = existingEntities.get(key);
-                    log.debug("기존 엔티티 업데이트: {}-{}, ID={}", parts[0], parts[1], entity.getId());
-                    // 명시적으로 엔티티 업데이트
-                    updateEntityFromDto(newData, entity);
-                } else {
-                    // 새 엔티티 생성
-                    entity = griDataItemMapper.toEntity(newData);
+            // DTO가 이미 standardCode를 가지고 있는지 확인
+            if (newData.getStandardCode() == null || newData.getStandardCode().isEmpty()) {
+                // 키에서 standardCode, disclosureCode 파싱
+                String[] parts = key.split("-");
+                if (parts.length >= 2) {
+                    newData.setStandardCode(parts[0]);
                     
-                    // 회사 참조 설정
-                    Company company = companyRepository.findById(companyId)
-                        .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
-                    entity.setCompany(company);
-                    isNew = true;
-                    log.debug("새 엔티티 생성: {}-{}", parts[0], parts[1]);
+                    // disclosureCode가 이미 있는지 확인
+                    if (newData.getDisclosureCode() == null || newData.getDisclosureCode().isEmpty()) {
+                        newData.setDisclosureCode(parts[1]);
+                    }
+                    
+                    log.debug("키에서 파싱: key={}, standardCode={}, disclosureCode={}", 
+                              key, newData.getStandardCode(), newData.getDisclosureCode());
+                } else {
+                    log.warn("잘못된 키 형식: {}, 처리 건너뜀", key);
+                    continue; // 잘못된 형식이므로 건너뜀
                 }
-                
-                // 명시적 저장 (saveAndFlush로 즉시 DB 반영)
-                GriDataItem savedEntity = griDataItemRepository.saveAndFlush(entity);
-                updatedEntities.add(savedEntity);
-                
-                // 감사 로그 생성
-                try {
-                    createAuditLog(griDataItemMapper.toDto(savedEntity), isNew ? "CREATE" : "UPDATE");
-                } catch (Exception e) {
-                    log.warn("감사 로그 생성 중 오류 발생 (무시됨): {}", e.getMessage());
+            } else {
+                // standardCode는 이미 설정됨, 복합 키 구성을 위해 형식 확인
+                if (newData.getDisclosureCode() == null || newData.getDisclosureCode().isEmpty()) {
+                    // 키에서 disclosureCode만 추출 시도
+                    String[] parts = key.split("-");
+                    if (parts.length >= 2) {
+                        newData.setDisclosureCode(parts[1]);
+                        log.debug("키에서 disclosureCode만 파싱: {}", parts[1]);
+                    } else {
+                        log.warn("standardCode는 있지만 disclosureCode 파싱 실패, 키: {}", key);
+                        continue;
+                    }
                 }
-                
-                // 결과 맵에 추가
-                GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
-                result.put(key, savedDto);
-                
-                log.info("GRI 데이터 {}됨: {}-{}, ID={}, 값='{}'", isNew ? "생성" : "업데이트", 
-                        savedEntity.getStandardCode(), savedEntity.getDisclosureCode(), 
-                        savedEntity.getId(), StringUtils.truncate(savedEntity.getDisclosureValue(), 30));
             }
+            
+            // 로깅 - 처리 중인 항목 표시
+            log.debug("처리 중인 항목: key={}, standardCode={}, disclosureCode={}, value='{}'",
+                    key, newData.getStandardCode(), newData.getDisclosureCode(), 
+                    StringUtils.truncate(newData.getDisclosureValue(), 30));
+            
+            // 필수 필드 검증 - 표준 코드와 공시 코드가 반드시 필요
+            if (newData.getStandardCode() == null || newData.getDisclosureCode() == null) {
+                log.warn("필수 필드 누락 - standardCode 또는 disclosureCode 없음, 키: {}", key);
+                continue;
+            }
+            
+            // 일관성 있는 복합 키 생성
+            String consistentKey = newData.getStandardCode() + "-" + newData.getDisclosureCode();
+            
+            // 필수 필드 설정
+            ensureRequiredFields(newData);
+            
+            // 유효한 데이터 여부 확인 (텍스트/숫자 값이 모두 빈 값인지 확인)
+            boolean hasValidValue = isValidGriData(newData);
+            if (!hasValidValue) {
+                log.debug("빈 데이터 항목 제외: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
+                continue; // 빈 데이터는 저장하지 않음
+            }
+            
+            GriDataItem entity;
+            boolean isNew = false;
+            
+            // 기존 엔티티 찾기 - 일관된 키 사용
+            if (existingEntities.containsKey(consistentKey)) {
+                // 기존 엔티티 업데이트
+                entity = existingEntities.get(consistentKey);
+                log.debug("기존 엔티티 업데이트: {}-{}, ID={}", 
+                          newData.getStandardCode(), newData.getDisclosureCode(), entity.getId());
+                // 명시적으로 엔티티 업데이트
+                updateEntityFromDto(newData, entity);
+            } else {
+                // 새 엔티티 생성
+                entity = griDataItemMapper.toEntity(newData);
+                
+                // 회사 참조 설정
+                Company company = companyRepository.findById(companyId)
+                    .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
+                entity.setCompany(company);
+                isNew = true;
+                log.debug("새 엔티티 생성: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
+            }
+            
+            // 명시적 저장 (saveAndFlush로 즉시 DB 반영)
+            GriDataItem savedEntity = griDataItemRepository.saveAndFlush(entity);
+            updatedEntities.add(savedEntity);
+            
+            // 감사 로그 생성
+            try {
+                createAuditLog(griDataItemMapper.toDto(savedEntity), isNew ? "CREATE" : "UPDATE");
+            } catch (Exception e) {
+                log.warn("감사 로그 생성 중 오류 발생 (무시됨): {}", e.getMessage());
+            }
+            
+            // 결과 맵에 추가 - 일관된 키 사용
+            GriDataItemDto savedDto = griDataItemMapper.toDto(savedEntity);
+            result.put(consistentKey, savedDto);
+            
+            log.info("GRI 데이터 {}됨: {}-{}, ID={}, 값='{}'", isNew ? "생성" : "업데이트", 
+                    savedEntity.getStandardCode(), savedEntity.getDisclosureCode(), 
+                    savedEntity.getId(), StringUtils.truncate(savedEntity.getDisclosureValue(), 30));
         }
         
         // 명시적 전체 저장 및 flush 추가
@@ -708,6 +794,24 @@ public class GriDataItemService {
         verifyDataPersistence(companyId, updatedEntities);
         
         return result;
+    }
+    
+    /**
+     * GRI 데이터 항목이 유효한 값을 가지고 있는지 확인
+     * 모든 값이 비어있거나 기본값인 경우는 저장할 필요가 없음
+     */
+    private boolean isValidGriData(GriDataItemDto dto) {
+        // 텍스트 값 확인
+        boolean hasDisclosureValue = dto.getDisclosureValue() != null && !dto.getDisclosureValue().trim().isEmpty();
+        
+        // 숫자 값 확인
+        boolean hasNumericValue = dto.getNumericValue() != null;
+        
+        // 시계열 데이터 확인
+        boolean hasTimeSeriesData = dto.getTimeSeriesData() != null && !dto.getTimeSeriesData().isEmpty();
+        
+        // 하나라도 의미 있는 값이 있으면 유효
+        return hasDisclosureValue || hasNumericValue || hasTimeSeriesData;
     }
     
     /**

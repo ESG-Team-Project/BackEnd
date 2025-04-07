@@ -428,4 +428,22 @@ public class GriDataItemDto {
             }
         }
     }
+
+    /**
+     * 디버깅을 위한 toString 메소드 오버라이드
+     * 로그에 객체 정보가 더 명확하게 보이도록 함
+     */
+    @Override
+    public String toString() {
+        return "GriDataItemDto{" +
+                "id=" + id +
+                ", standardCode='" + standardCode + '\'' +
+                ", disclosureCode='" + disclosureCode + '\'' +
+                ", disclosureValue='" + (disclosureValue != null ? StringUtils.truncate(disclosureValue, 20) + "..." : "null") + '\'' +
+                ", numericValue=" + numericValue +
+                ", category='" + category + '\'' +
+                ", companyId=" + companyId +
+                ", dataType='" + dataType + '\'' +
+                '}';
+    }
 } 
