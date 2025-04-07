@@ -140,13 +140,15 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList(  // 허용할 헤더
                 HttpHeaders.AUTHORIZATION,
                 HttpHeaders.CONTENT_TYPE,
-                HttpHeaders.ACCEPT
+                HttpHeaders.ACCEPT,
+                "Expires"
         ));
         configuration.setMaxAge(3600L);  // pre-flight 요청 캐시 시간(초)
         configuration.setExposedHeaders(Arrays.asList(  // 응답에서 노출할 헤더
                 HttpHeaders.AUTHORIZATION,
                 HttpHeaders.CONTENT_TYPE,
-                "X-Custom-Header"
+                "X-Custom-Header",
+                "Expires"
         ));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
