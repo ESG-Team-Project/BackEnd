@@ -10,10 +10,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.PostgreSQLDialect
   jackson:
     serialization:
@@ -53,3 +53,13 @@ jwt:
   prefix: Bearer
   secret: ${JWT_SECRET:}  # 환경 변수에서 시크릿 키를 가져오거나, 비어있으면 자동 생성
   expiration: 86400000  # 24시간 (밀리초)
+
+# 로깅 설정
+logging:
+  level:
+    root: WARN
+    dev.gyeoul.esginsightboard: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN

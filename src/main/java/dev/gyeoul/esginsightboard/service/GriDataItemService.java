@@ -579,10 +579,10 @@ public class GriDataItemService {
      */
     @Transactional(readOnly = true)
     public Map<String, GriDataItemDto> getGriDataMapByCompanyId(Long companyId) {
-        log.info("회사 ID {}의 GRI 데이터 맵 조회 시작", companyId);
+        log.debug("회사 ID {}의 GRI 데이터 맵 조회 시작", companyId);
         
-        List<GriDataItem> items = griDataItemRepository.findAllByCompanyId(companyId);
-        log.info("회사 ID {}의 GRI 데이터 {}개 항목 조회됨", companyId, items.size());
+        List<GriDataItem> items = griDataItemRepository.findByCompanyId(companyId);
+        log.debug("회사 ID {}의 GRI 데이터 {}개 항목 조회됨", companyId, items.size());
         
         Map<String, GriDataItemDto> result = new HashMap<>();
         Set<String> duplicateKeys = new HashSet<>();
@@ -601,8 +601,8 @@ public class GriDataItemService {
             dto = processTimeSeriesDataForRead(dto);
             result.put(key, dto);
             
-            // info 레벨로 변경하여 항상 로그 확인 가능
-            log.info("GRI 항목 맵에 추가: {}-{}, ID={}, 값='{}'", 
+            // debug 레벨로 변경
+            log.debug("GRI 항목 맵에 추가: {}-{}, ID={}, 값='{}'", 
                     item.getStandardCode(), item.getDisclosureCode(), 
                     item.getId(), StringUtils.truncate(item.getDisclosureValue(), 30));
         }
@@ -611,8 +611,8 @@ public class GriDataItemService {
             log.warn("발견된 중복 키: {} - 중복 항목은 덮어쓰기됨", duplicateKeys);
         }
         
-        // 디버깅을 위한 stack trace 로깅 (호출 경로 확인)
-        if (log.isDebugEnabled()) {
+        // 디버깅을 위한 stack trace 로깅 (호출 경로 확인) - 불필요하므로 제거
+        if (log.isTraceEnabled()) {
             StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
             StringBuilder callPath = new StringBuilder("호출 경로: ");
             for (int i = 2; i < Math.min(6, stackTrace.length); i++) {
@@ -622,7 +622,7 @@ public class GriDataItemService {
                         .append("() → ");
             }
             callPath.append("...");
-            log.debug(callPath.toString());
+            log.trace(callPath.toString());
         }
         
         // 스레드 정보 및 HTTP 요청 정보 로깅 (URL 확인)
@@ -630,14 +630,14 @@ public class GriDataItemService {
             RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
             if (requestAttributes instanceof ServletRequestAttributes) {
                 HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
-                log.info("GRI 데이터 요청 정보 - URL: {}, 메소드: {}", 
+                log.debug("GRI 데이터 요청 정보 - URL: {}, 메소드: {}", 
                         request.getRequestURI(), request.getMethod());
             }
         } catch (Exception e) {
-            log.debug("HTTP 요청 정보 로깅 중 오류: {}", e.getMessage());
+            log.trace("HTTP 요청 정보 로깅 중 오류: {}", e.getMessage());
         }
         
-        log.info("회사 ID {}의 GRI 데이터 맵 조회 완료. {}개 항목 반환", companyId, result.size());
+        log.debug("회사 ID {}의 GRI 데이터 맵 조회 완료. {}개 항목 반환", companyId, result.size());
         return result;
     }
     
@@ -652,29 +652,28 @@ public class GriDataItemService {
     public Map<String, GriDataItemDto> updateGriDataForCompany(
             Long companyId, Map<String, GriDataItemDto> griDataMap) {
         
-        log.info("회사 ID {}의 GRI 데이터 맵을 업데이트합니다. 항목 수: {}", companyId, griDataMap.size());
+        log.debug("회사 ID {}의 GRI 데이터 맵을 업데이트합니다. 항목 수: {}", companyId, griDataMap.size());
         
-        // 기존 데이터 조회 - 실제 엔티티 맵으로 가져오기
+        // 회사 소속 기존 GRI 데이터 조회
+        List<GriDataItem> companyGriItems = griDataItemRepository.findByCompanyId(companyId);
         Map<String, GriDataItem> existingEntities = new HashMap<>();
-        List<GriDataItem> existingItems = griDataItemRepository.findAllByCompanyId(companyId);
         
-        // 키 기반 조회용 맵 구성
-        for (GriDataItem item : existingItems) {
+        for (GriDataItem item : companyGriItems) {
             String key = item.getStandardCode() + "-" + item.getDisclosureCode();
             existingEntities.put(key, item);
-            log.debug("기존 GRI 항목 로드: {}-{}, ID={}", item.getStandardCode(), item.getDisclosureCode(), item.getId());
+            log.trace("기존 GRI 항목 로드: {}-{}, ID={}", item.getStandardCode(), item.getDisclosureCode(), item.getId());
         }
+        log.debug("기존 GRI 항목 {}개 로드됨", existingEntities.size());
         
-        log.info("기존 GRI 항목 {}개 로드됨", existingEntities.size());
-        
-        // 각 항목 처리 및 감사 로그 생성
         Map<String, GriDataItemDto> result = new HashMap<>();
         List<GriDataItem> updatedEntities = new ArrayList<>();
         
-        // 각 엔트리에 대한 상세 정보 로깅
-        griDataMap.forEach((key, value) -> {
-            log.debug("입력 항목 정보 - 키: {}, 값: {}", key, value);
-        });
+        // 각 엔트리에 대한 상세 정보 로깅 - 불필요한 로그 제거
+        if (log.isTraceEnabled()) {
+            griDataMap.forEach((key, value) -> {
+                log.trace("입력 항목 정보 - 키: {}, 값: {}", key, value);
+            });
+        }
         
         for (Map.Entry<String, GriDataItemDto> entry : griDataMap.entrySet()) {
             String key = entry.getKey();
@@ -695,7 +694,7 @@ public class GriDataItemService {
                         newData.setDisclosureCode(parts[1]);
                     }
                     
-                    log.debug("키에서 파싱: key={}, standardCode={}, disclosureCode={}", 
+                    log.trace("키에서 파싱: key={}, standardCode={}, disclosureCode={}",
                               key, newData.getStandardCode(), newData.getDisclosureCode());
                 } else {
                     log.warn("잘못된 키 형식: {}, 처리 건너뜀", key);
@@ -717,7 +716,7 @@ public class GriDataItemService {
             }
             
             // 로깅 - 처리 중인 항목 표시
-            log.debug("처리 중인 항목: key={}, standardCode={}, disclosureCode={}, value='{}'",
+            log.trace("처리 중인 항목: key={}, standardCode={}, disclosureCode={}, value='{}'",
                     key, newData.getStandardCode(), newData.getDisclosureCode(), 
                     StringUtils.truncate(newData.getDisclosureValue(), 30));
             
@@ -736,7 +735,7 @@ public class GriDataItemService {
             // 유효한 데이터 여부 확인 (텍스트/숫자 값이 모두 빈 값인지 확인)
             boolean hasValidValue = isValidGriData(newData);
             if (!hasValidValue) {
-                log.debug("빈 데이터 항목 제외: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
+                log.trace("빈 데이터 항목 제외: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
                 continue; // 빈 데이터는 저장하지 않음
             }
             
@@ -747,7 +746,7 @@ public class GriDataItemService {
             if (existingEntities.containsKey(consistentKey)) {
                 // 기존 엔티티 업데이트
                 entity = existingEntities.get(consistentKey);
-                log.debug("기존 엔티티 업데이트: {}-{}, ID={}", 
+                log.trace("기존 엔티티 업데이트: {}-{}, ID={}",
                           newData.getStandardCode(), newData.getDisclosureCode(), entity.getId());
                 // 명시적으로 엔티티 업데이트
                 updateEntityFromDto(newData, entity);
@@ -760,7 +759,7 @@ public class GriDataItemService {
                     .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
                 entity.setCompany(company);
                 isNew = true;
-                log.debug("새 엔티티 생성: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
+                log.trace("새 엔티티 생성: {}-{}", newData.getStandardCode(), newData.getDisclosureCode());
             }
             
             // 명시적 저장 (saveAndFlush로 즉시 DB 반영)
@@ -787,11 +786,8 @@ public class GriDataItemService {
         if (!updatedEntities.isEmpty()) {
             griDataItemRepository.saveAllAndFlush(updatedEntities);
         }
-        entityManager.flush();
-        log.info("회사 ID {}의 GRI 데이터 업데이트 완료. 처리된 항목 수: {}", companyId, result.size());
         
-        // 저장 후 DB 상태 검증 (동일 트랜잭션 내에서)
-        verifyDataPersistence(companyId, updatedEntities);
+        log.debug("회사 ID {}의 GRI 데이터 업데이트 완료. 처리된 항목 수: {}", companyId, result.size());
         
         return result;
     }

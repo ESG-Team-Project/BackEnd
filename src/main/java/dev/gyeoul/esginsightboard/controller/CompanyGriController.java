@@ -57,7 +57,7 @@ public class CompanyGriController {
     })
     @GetMapping("/company/gri")
     public ResponseEntity<Map<String, GriDataItemDto>> getCompanyGriData(HttpServletRequest request) {
-        log.info("=== 회사 GRI 데이터 조회 API 호출 - 요청 URL: {}, 메소드: {} ===", 
+        log.debug("=== 회사 GRI 데이터 조회 API 호출 - 요청 URL: {}, 메소드: {} ===", 
                 request.getRequestURI(), request.getMethod());
                 
         // 현재 인증된 사용자에서 회사 정보를 가져옴
@@ -65,16 +65,18 @@ public class CompanyGriController {
         UserDto userDto = (UserDto) authentication.getPrincipal();
         
         Long companyId = userDto.getCompanyId();
-        log.info("현재 사용자(회사 ID: {})의 GRI 데이터 조회 요청", companyId);
+        log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 조회 요청", companyId);
         
         // 요청 파라미터 및 헤더 로깅
-        log.info("요청 헤더 - Content-Type: {}, Accept: {}, User-Agent: {}", 
-                request.getHeader("Content-Type"), 
-                request.getHeader("Accept"),
-                request.getHeader("User-Agent"));
+        if (log.isTraceEnabled()) {
+            log.trace("요청 헤더 - Content-Type: {}, Accept: {}, User-Agent: {}", 
+                    request.getHeader("Content-Type"), 
+                    request.getHeader("Accept"),
+                    request.getHeader("User-Agent"));
+        }
                 
         Map<String, GriDataItemDto> griData = griDataItemService.getGriDataMapByCompanyId(companyId);
-        log.info("GRI 데이터 조회 완료: {}개 항목 반환", griData.size());
+        log.debug("GRI 데이터 조회 완료: {}개 항목 반환", griData.size());
         
         // 응답 캐시 방지 헤더 추가
         HttpHeaders headers = new HttpHeaders();
@@ -104,7 +106,7 @@ public class CompanyGriController {
             @RequestBody Map<String, GriDataItemDto> griData,
             HttpServletRequest request) {
         
-        log.info("=== 회사 GRI 데이터 업데이트 API 호출 - 요청 URL: {}, 메소드: {} ===", 
+        log.debug("=== 회사 GRI 데이터 업데이트 API 호출 - 요청 URL: {}, 메소드: {} ===", 
                 request.getRequestURI(), request.getMethod());
         
         // 현재 인증된 사용자에서 회사 정보를 가져옴
@@ -112,20 +114,20 @@ public class CompanyGriController {
         UserDto userDto = (UserDto) authentication.getPrincipal();
         
         Long companyId = userDto.getCompanyId();
-        log.info("현재 사용자(회사 ID: {})의 GRI 데이터 일괄 업데이트 요청. 항목 수: {}", companyId, griData.size());
+        log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 일괄 업데이트 요청. 항목 수: {}", companyId, griData.size());
         
         // 요청 데이터 샘플 로깅 (최대 2개 항목만)
-        if (!griData.isEmpty()) {
+        if (log.isTraceEnabled() && !griData.isEmpty()) {
             int count = 0;
             for (Map.Entry<String, GriDataItemDto> entry : griData.entrySet()) {
                 if (count >= 2) break;
-                log.info("업데이트 요청 데이터 샘플 - 키: {}, 값: {}", entry.getKey(), entry.getValue());
+                log.trace("업데이트 요청 데이터 샘플 - 키: {}, 값: {}", entry.getKey(), entry.getValue());
                 count++;
             }
         }
         
         Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompany(companyId, griData);
-        log.info("GRI 데이터 업데이트 완료: {}개 항목 처리됨", updatedData.size());
+        log.debug("GRI 데이터 업데이트 완료: {}개 항목 처리됨", updatedData.size());
         
         // 응답 캐시 방지 헤더 추가
         HttpHeaders headers = new HttpHeaders();
