@@ -183,4 +183,7 @@ public interface GriDataItemRepository extends JpaRepository<GriDataItem, Long>,
      */
     Optional<GriDataItem> findByCompanyIdAndStandardCodeAndDisclosureCode(
             Long companyId, String standardCode, String disclosureCode);
+
+    // 회사 ID로 모든 GRI 데이터 항목 조회
+    List<GriDataItem> findAllByCompanyId(Long companyId);
 } 

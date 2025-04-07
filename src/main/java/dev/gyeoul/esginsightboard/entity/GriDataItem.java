@@ -418,6 +418,127 @@ public class GriDataItem {
     }
     
     /**
+     * 표준 코드를 설정합니다.
+     * 
+     * @param standardCode 설정할 표준 코드
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setStandardCode(String standardCode) {
+        this.standardCode = standardCode;
+        return this;
+    }
+
+    /**
+     * 공시 코드를 설정합니다.
+     * 
+     * @param disclosureCode 설정할 공시 코드
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setDisclosureCode(String disclosureCode) {
+        this.disclosureCode = disclosureCode;
+        return this;
+    }
+
+    /**
+     * 공시 제목을 설정합니다.
+     * 
+     * @param disclosureTitle 설정할 공시 제목
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setDisclosureTitle(String disclosureTitle) {
+        this.disclosureTitle = disclosureTitle;
+        return this;
+    }
+
+    /**
+     * 공시 값을 설정합니다.
+     * 
+     * @param disclosureValue 설정할 공시 값
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setDisclosureValue(String disclosureValue) {
+        this.disclosureValue = disclosureValue;
+        return this;
+    }
+
+    /**
+     * 설명을 설정합니다.
+     * 
+     * @param description 설정할 설명
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setDescription(String description) {
+        this.description = description;
+        return this;
+    }
+
+    /**
+     * 수치 값을 설정합니다.
+     * 
+     * @param numericValue 설정할 수치 값
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setNumericValue(Double numericValue) {
+        this.numericValue = numericValue;
+        return this;
+    }
+
+    /**
+     * 단위를 설정합니다.
+     * 
+     * @param unit 설정할 단위
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setUnit(String unit) {
+        this.unit = unit;
+        return this;
+    }
+
+    /**
+     * 보고 기간 시작일을 설정합니다.
+     * 
+     * @param reportingPeriodStart 설정할 보고 기간 시작일
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setReportingPeriodStart(LocalDate reportingPeriodStart) {
+        this.reportingPeriodStart = reportingPeriodStart;
+        return this;
+    }
+
+    /**
+     * 보고 기간 종료일을 설정합니다.
+     * 
+     * @param reportingPeriodEnd 설정할 보고 기간 종료일
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setReportingPeriodEnd(LocalDate reportingPeriodEnd) {
+        this.reportingPeriodEnd = reportingPeriodEnd;
+        return this;
+    }
+
+    /**
+     * 검증 제공자를 설정합니다.
+     * 
+     * @param verificationProvider 설정할 검증 제공자
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setVerificationProvider(String verificationProvider) {
+        this.verificationProvider = verificationProvider;
+        return this;
+    }
+
+    /**
+     * 카테고리를 설정합니다.
+     * 
+     * @param category 설정할 카테고리
+     * @return this (메소드 체이닝용)
+     */
+    public GriDataItem setCategory(String category) {
+        this.category = category;
+        return this;
+    }
+    
+    /**
      * 두 GRI 데이터 항목이 동일한지 비교
      * 
      * @param o 비교할 객체

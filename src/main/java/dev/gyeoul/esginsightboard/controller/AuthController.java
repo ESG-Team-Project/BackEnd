@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -78,7 +79,7 @@ public class AuthController {
     /**
      * 토큰 검증 API
      * 
-     * @param token JWT 토큰
+     * @param request 토큰 검증 요청
      * @return 토큰 유효성 결과
      */
     @PostMapping("/verify")
@@ -104,6 +105,67 @@ public class AuthController {
         TokenVerificationResponse response = TokenVerificationResponse.builder()
             .valid(isValid)
             .username(email)
+            .build();
+            
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 이메일 중복 체크 API
+     * 
+     * @param request 이메일 체크 요청
+     * @return 이메일 사용 가능 여부
+     */
+    @PostMapping("/check-email")
+    @Operation(
+        summary = "이메일 중복 체크", 
+        description = "회원가입 시 입력한 이메일의 사용 가능 여부를 확인합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "이메일 체크 성공", 
+            content = @Content(schema = @Schema(implementation = EmailCheckResponse.class))),
+        @ApiResponse(responseCode = "400", description = "유효하지 않은 이메일 형식")
+    })
+    public ResponseEntity<EmailCheckResponse> checkEmail(@Valid @RequestBody EmailCheckRequest request) {
+        log.info("이메일 중복 체크 요청: {}", request.getEmail());
+        
+        boolean isAvailable = userService.isEmailAvailable(request.getEmail());
+        String message = isAvailable ? "사용 가능한 이메일입니다." : "이미 사용 중인 이메일입니다.";
+        
+        EmailCheckResponse response = EmailCheckResponse.builder()
+            .available(isAvailable)
+            .message(message)
+            .build();
+            
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * 이메일 중복 체크 API (GET 메소드)
+     * 
+     * @param email 확인할 이메일
+     * @return 이메일 사용 가능 여부
+     */
+    @GetMapping("/check-email")
+    @Operation(
+        summary = "이메일 중복 체크 (GET)", 
+        description = "회원가입 시 입력한 이메일의 사용 가능 여부를 확인합니다 (URL 파라미터 사용)."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "이메일 체크 성공", 
+            content = @Content(schema = @Schema(implementation = EmailCheckResponse.class))),
+        @ApiResponse(responseCode = "400", description = "유효하지 않은 이메일 형식")
+    })
+    public ResponseEntity<EmailCheckResponse> checkEmailByGet(
+            @RequestParam @Email(message = "유효한 이메일 형식이 아닙니다") String email) {
+        log.info("이메일 중복 체크 요청 (GET): {}", email);
+        
+        boolean isAvailable = userService.isEmailAvailable(email);
+        String message = isAvailable ? "사용 가능한 이메일입니다." : "이미 사용 중인 이메일입니다.";
+        
+        EmailCheckResponse response = EmailCheckResponse.builder()
+            .available(isAvailable)
+            .message(message)
             .build();
             
         return ResponseEntity.ok(response);

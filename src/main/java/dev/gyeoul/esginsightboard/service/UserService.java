@@ -234,6 +234,22 @@ public class UserService implements UserDetailsService {
                 .map(UserDto::fromEntity);
     }
 
+    /**
+     * 이메일 중복 체크
+     * 
+     * @param email 확인할 이메일
+     * @return 이메일 사용 가능 여부 (true: 사용 가능, false: 중복으로 사용 불가)
+     */
+    @Transactional(readOnly = true)
+    public boolean isEmailAvailable(String email) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("이메일은 필수 입력값입니다");
+        }
+        
+        // 이메일 존재 여부 확인 (false면 사용 가능)
+        return !userRepository.existsByEmail(email);
+    }
+
     // 사용자 데이터 업데이트
     @Transactional
     public UserDto updateUser(Long userId, UserUpdateRequest request) {

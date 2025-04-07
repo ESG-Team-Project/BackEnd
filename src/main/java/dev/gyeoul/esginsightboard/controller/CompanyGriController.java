@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -62,7 +64,16 @@ public class CompanyGriController {
         log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 조회 요청", companyId);
         
         Map<String, GriDataItemDto> griData = griDataItemService.getGriDataMapByCompanyId(companyId);
-        return ResponseEntity.ok(griData);
+        
+        // 응답 캐시 방지 헤더 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.setCacheControl(CacheControl.noStore().mustRevalidate());
+        headers.setPragma("no-cache");
+        headers.setExpires(0L); // 만료 시간을 0으로 설정
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(griData);
     }
     
     /**
@@ -86,10 +97,18 @@ public class CompanyGriController {
         UserDto userDto = (UserDto) authentication.getPrincipal();
         
         Long companyId = userDto.getCompanyId();
-        log.debug("현재 사용자(회사 ID: {})의 GRI 데이터 일괄 업데이트 요청", companyId);
+        log.info("현재 사용자(회사 ID: {})의 GRI 데이터 일괄 업데이트 요청. 항목 수: {}", companyId, griData.size());
         
         Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompany(companyId, griData);
-        return ResponseEntity.ok(updatedData);
+        
+        // 응답 캐시 방지 헤더 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.setCacheControl(CacheControl.noStore().mustRevalidate());
+        headers.setPragma("no-cache");
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(updatedData);
     }
     
     /**
@@ -128,7 +147,16 @@ public class CompanyGriController {
                 .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         
         Map<String, GriDataItemDto> updatedData = griDataItemService.updateGriDataForCompany(companyId, filteredData);
-        return ResponseEntity.ok(updatedData);
+        
+        // 응답 캐시 방지 헤더 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.setCacheControl(CacheControl.noStore().mustRevalidate());
+        headers.setPragma("no-cache");
+        headers.setExpires(0L); // 만료 시간을 0으로 설정
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(updatedData);
     }
     
     /**
@@ -200,6 +228,14 @@ public class CompanyGriController {
         
         PageResponse<GriDataItemDto> result = griDataItemService.findByCriteria(criteria, pageable);
         
-        return ResponseEntity.ok(result);
+        // 응답 캐시 방지 헤더 추가
+        HttpHeaders headers = new HttpHeaders();
+        headers.setCacheControl(CacheControl.noStore().mustRevalidate());
+        headers.setPragma("no-cache");
+        headers.setExpires(0L); // 만료 시간을 0으로 설정
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(result);
     }
 } 
